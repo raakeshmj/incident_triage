@@ -67,9 +67,19 @@ class InvestigationResult(BaseModel):
     inconclusive_reason: str | None     # set iff no confident hypothesis
 ```
 
+`selected_root_cause_index` and `inconclusive_reason` are **mutually
+exclusive** — exactly one must be set, enforced by a Pydantic model
+validator, not left to convention. This is what lets the state machine
+route deterministically: a result with `selected_root_cause_index` set can
+only lead to `RCA_READY`; a result with `inconclusive_reason` set can only
+lead directly to `ESCALATED`. There is no code path by which an
+inconclusive result reaches `RCA_READY` — see
+`04-incident-state-machine.md`.
+
 `incident-core`'s validation, in order, **before persisting anything**:
 
-1. Schema validates (Pydantic) — malformed output ⇒ `InvestigationFailed`,
+1. Schema validates (Pydantic), including the mutual-exclusivity rule
+   above — malformed or ambiguous output ⇒ `InvestigationFailed`,
    `ESCALATED` per the state machine, never silently retried into a
    half-applied state.
 2. Every `evidence_id` referenced actually exists in `evidence_refs` **and**

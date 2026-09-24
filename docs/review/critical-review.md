@@ -6,27 +6,64 @@ each: what could go wrong, what the design already does about it, and —
 where relevant — what's still an open risk that implementation needs to
 watch for rather than something fully solved on paper.
 
+## Revision note (post-architecture-review corrections)
+
+A subsequent architecture review caught real inconsistencies this
+document's first pass missed, since fixed:
+
+- **Alert ownership was self-contradictory.** `02-component-boundaries.md`'s
+  ownership table listed `alert-ingestion` as inserting into `alerts` while
+  its own service description said it only forwards a command — a genuine
+  contradiction, not a documentation nit. Fixed: `incident-core` is now
+  unambiguously the sole writer of `alerts`, persisting and correlating in
+  one transaction. See item 1 below and ADR-0004.
+- **`policy-engine`'s purity claim didn't match its own example rules** —
+  rules referenced ambient lookups (`incident.environment`,
+  `remediation_rate(...)`) that a side-effect-free function can't perform.
+  Fixed via an explicit, immutably-captured `PolicyEvaluationContext` — see
+  ADR-0012 and `09-remediation-policy-boundaries.md`. This was a real gap
+  in the original design, not just an open risk; it's called out here
+  rather than folded silently into item 1's mitigation text.
+- **`RCA_READY` could previously be reached by an inconclusive
+  investigation** — the original state machine's guard used "OR explicit
+  'no confident hypothesis' result" for the `RCA_READY` transition, which
+  meant "an RCA is ready" and "the investigation gave up" were
+  conflated. Fixed: inconclusive/insufficient-evidence outcomes now route
+  directly to `ESCALATED`, never through `RCA_READY`. See
+  `04-incident-state-machine.md`.
+- `verifications.evidence_ids` (a bare `UUID[]`) is now a normalized,
+  FK-enforced `verification_evidence` join table; `processed_commands` is
+  now scoped by `(command_type, idempotency_key)`; `alerts` now has a
+  `(source, external_id)` dedup constraint; and item 1's database-level
+  enforcement recommendation is now implemented as a design decision
+  (ADR-0013), not just a recommendation — see the updates within each
+  section below.
+
 ## 1. State ownership
 
 **Risk**: multiple writers to the same aggregate cause lost updates or
 contradictory state.
 
 **Mitigation in design**: `incident-core` is the sole writer of every
-incident-related table (`02-component-boundaries.md` ownership table).
-Every other service communicates via commands that `incident-core`
-validates and applies. `investigation-agent` cannot write hypotheses or
-proposals directly — it submits a command; `incident-core` decides what to
-persist.
+incident-related table, **including `alerts`** — the ownership table in
+`02-component-boundaries.md` previously contradicted this for `alerts`
+specifically (it listed `alert-ingestion` as an inserter), which has since
+been corrected: `alert-ingestion` holds no database credentials at all and
+only ever sends an `AlertReceivedCommand`. Every other service
+communicates via commands that `incident-core` validates and applies.
+`investigation-agent` cannot write hypotheses or proposals directly — it
+submits a command; `incident-core` decides what to persist.
 
-**Open risk**: this only holds if implementation discipline is maintained.
-The most likely way this erodes over time is a "just this once" direct DB
-write from another service for a performance shortcut (e.g.
-`remediation-executor` writing `executions.status` directly instead of
-going through a command). Recommend enforcing this at the infrastructure
-level too — separate DB credentials per service, with only `incident-core`'s
-credential granted write access to these tables — not just at the code
-level, so a violation fails loudly (permission denied) rather than quietly
-working.
+**Resolved**: the database-level enforcement this section originally only
+recommended is now a design decision, not just a recommendation — ADR-0013
+puts `incident-core` and `evidence-service` in separate logical Postgres
+schemas within a shared v1 instance, each behind its own role with grants
+scoped to only its own schema. A bug or a "just this once" shortcut in one
+service's code now fails with a permission error rather than quietly
+succeeding, closing the gap this section originally flagged as unaddressed.
+Full physical isolation (separate instances) remains deferred until scale
+requires it — see ADR-0013's consequences for what that leaves accepted in
+the meantime (shared connection/resource limits, shared failure domain).
 
 ## 2. Race conditions
 
@@ -75,7 +112,15 @@ modest, fixed shard count as the starting point.
 **Mitigation**: covered comprehensively in ADR-0011 — idempotency keys on
 every command, optimistic concurrency on `incidents`, unique constraint on
 `executions.idempotency_key`, executor adapters required to use
-target-system idempotency primitives.
+target-system idempotency primitives. Since the first pass of this review,
+two refinements closed smaller gaps: `processed_commands` is now keyed by
+`(command_type, idempotency_key)` rather than the idempotency key alone
+(closing a theoretical cross-command-type collision), and `alerts` now has
+a `(source, external_id)` partial unique index as a second, database-level
+line of defense against duplicate alert rows from source retries,
+independent of whether the command-level idempotency key was derived
+correctly — see `06-database-design.md`, "Alert deduplication and
+retries."
 
 **Open risk**: idempotency of the *investigation* itself is weaker than
 idempotency of *state transitions*. If `investigation-agent` crashes after
@@ -203,8 +248,9 @@ Checked against the component table in `02-component-boundaries.md`:
 
 ## Summary of concrete follow-ups for implementation (not just this doc)
 
-1. Enforce single-writer ownership with database-level permissions, not
-   only code discipline.
+1. ~~Enforce single-writer ownership with database-level permissions, not
+   only code discipline.~~ **Addressed** — ADR-0013 (per-service Postgres
+   roles scoped to logical schemas within the shared v1 instance).
 2. Decide the concrete Redis Streams sharding mechanism for per-incident
    ordering (fixed shard count + consistent hash on `incident_id`
    recommended) before building the outbox relay.

@@ -18,22 +18,27 @@ migrations applied; nothing else needs to work yet.
 
 ## Phase 1 — Deterministic core: ingestion, correlation, state machine
 
-- `alert-ingestion`: webhook auth, schema validation, normalize to `Alert`,
-  hand off to `incident-core`.
-- `incident-core`: correlation module (deterministic fingerprinting),
-  Incident aggregate, the full state machine transition table minus any
-  step that depends on investigation/remediation (i.e. `TRIAGING` →
-  `INVESTIGATING`/`SUPPRESSED`/`CANCELLED` only for now), outbox writes,
-  idempotency ledger, optimistic concurrency.
+- `alert-ingestion`: webhook auth, schema validation, normalize to `Alert`
+  shape, send `AlertReceivedCommand` to `incident-core` — this service
+  never touches a database.
+- `incident-core`: sole persistence of `Alert` (including the
+  `(source, external_id)` dedup index), correlation module (deterministic
+  fingerprinting), Incident aggregate, the full state machine transition
+  table minus any step that depends on investigation/remediation (i.e.
+  `TRIAGING` → `INVESTIGATING`/`SUPPRESSED`/`CANCELLED` only for now),
+  outbox writes, the `(command_type, idempotency_key)`-scoped idempotency
+  ledger, optimistic concurrency.
 - Outbox relay → Redis Streams.
 - `notification-service`: consume `IncidentCreated`/`IncidentStatusChanged`,
   post to Slack/webhook.
 
 *Exit criteria*: synthetic alerts correctly correlate into incidents,
-duplicate/suppressed alerts are handled, notifications fire, and the whole
-path is covered by tests that specifically exercise the race conditions
-identified in `review/critical-review.md` §2 (concurrent alert correlation,
-duplicate delivery).
+duplicate/suppressed alerts are handled (including retried webhook
+deliveries deduping correctly at both the command and database level),
+notifications fire, and the whole path is covered by tests that
+specifically exercise the race conditions identified in
+`review/critical-review.md` §2 (concurrent alert correlation, duplicate
+delivery).
 
 ## Phase 2 — Evidence and read-only investigation plumbing (still no LLM)
 
@@ -52,8 +57,12 @@ independent of agent correctness.
 
 ## Phase 3 — Policy engine and action catalog
 
-- `policy-engine`: rule DSL, the initial policy version, the kill switch,
-  rate limiting.
+- `policy-engine`: the pure `evaluate()` function and rule DSL, the initial
+  policy version.
+- `incident-core`: the `PolicyEvaluationContext` builder (kill-switch table
+  reads, remediation-rate queries, incident field lookups) that runs
+  immediately before every `policy-engine` call; the `kill_switches` table
+  and its admin-only write path.
 - `action_catalog` v1 with 2–3 real, low-risk actions (e.g.
   `restart_deployment` against the `kind` cluster).
 - `remediation-executor`: Kubernetes adapter for the initial catalog
@@ -82,7 +91,9 @@ the UI and approve/deny it, with the decision correctly enforced by
 - `investigation-agent`: tool-use loop against Claude, all tools proxying
   `evidence-service`, `submit_findings` schema validation, budgets.
 - `incident-core`'s evidence-citation and action-catalog validation on
-  investigation results (§07).
+  investigation results (§07), including the `selected_root_cause_index` /
+  `inconclusive_reason` mutual-exclusivity check that routes the incident
+  to `RCA_READY` or directly to `ESCALATED` (§04).
 - Initial small golden dataset (even 10–20 hand-built fixtures) and
   `eval-harness` skeleton running against it in replay mode, gating CI for
   this service specifically from the start — not bolted on later.

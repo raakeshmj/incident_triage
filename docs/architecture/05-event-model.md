@@ -61,11 +61,28 @@ message ID.
 }
 ```
 
+## Commands vs. domain events — naming
+
+Easy to conflate, so named to keep them apart: `AlertReceivedCommand` (sent
+by `alert-ingestion` to `incident-core`) is a **command** — a request that
+`incident-core` may accept or reject, carrying an idempotency key.
+`AlertReceived` (no `Command` suffix, emitted by `incident-core`) is the
+**domain event** written to the outbox once that command has been accepted
+and the `Alert` persisted, in the same transaction. Every domain event in
+the catalog below is produced by whichever service owns the aggregate it
+describes — for `Alert`, that is always `incident-core`, never
+`alert-ingestion`, even though `alert-ingestion` is what triggered it via
+its command. The same pattern holds for `InvestigationCompleted`/
+`InvestigationFailed` (triggered by a command from `investigation-agent`,
+but the domain event is `incident-core`'s to emit) and `ExecutionCompleted`/
+`ExecutionFailed` (triggered by a command from `remediation-executor`,
+domain event owned by `incident-core`).
+
 ## Event catalog (initial)
 
 | Event | Emitted by | Payload highlights |
 |---|---|---|
-| `AlertReceived` | alert-ingestion (via command to incident-core) | alert id, fingerprint, source |
+| `AlertReceived` | **incident-core** (in the same transaction that persists the `Alert` and runs correlation) | alert id, fingerprint, source |
 | `AlertLinked` | incident-core | alert id, incident id |
 | `IncidentCreated` | incident-core | incident id, correlation key, initial severity |
 | `IncidentStatusChanged` | incident-core | from, to, reason |
@@ -95,13 +112,28 @@ message ID.
 
 - **Commands** (`alert-ingestion → incident-core`,
   `investigation-agent → incident-core`,
-  `remediation-executor → incident-core`) each carry an `idempotency_key`
-  supplied by the caller (e.g. `alert.fingerprint + debounce_bucket`,
-  `investigation_id`, `execution_id + attempt`). `incident-core` keeps a
-  `processed_commands (idempotency_key, result, processed_at)` table; a
-  repeated command with a seen key returns the stored result without
-  re-applying the transition. This is what makes retries after a timeout
-  safe.
+  `remediation-executor → incident-core`) each carry a caller-supplied
+  `idempotency_key`. `incident-core` keeps a `processed_commands` table
+  keyed by the **composite** `(command_type, idempotency_key)` — not the
+  idempotency key alone — so a key can never collide across different
+  command types (nothing otherwise stops two unrelated commands from
+  independently choosing to key off the same UUID, e.g. an
+  `investigation_id` and an `execution_id` that happen to coincide). A
+  repeated command with a seen `(command_type, idempotency_key)` pair
+  returns the stored result without re-applying the transition. This is
+  what makes retries after a timeout safe.
+
+  Every command handler follows the same shape: begin transaction → look
+  up `(command_type, idempotency_key)` → if found, return the stored
+  result and stop → otherwise apply the state change, insert the outbox
+  event(s), insert the `processed_commands` row → commit. Concretely:
+
+  | Command type | Idempotency key |
+  |---|---|
+  | `AlertReceivedCommand` | source-provided `external_id` when present; otherwise a content hash of the normalized payload plus a debounce time bucket |
+  | `InvestigationCompletedCommand` / `InvestigationFailedCommand` | `investigation_id` |
+  | `ApprovalDecisionCommand` | `approval_id` |
+  | `ExecutionCompletedCommand` / `ExecutionFailedCommand` | `execution_id` (attempt-scoped via `executions.idempotency_key`, see `06-database-design.md`) |
 - **Bus consumers** (notification-service, eval-harness recorder) keep a
   `(consumer_name, event_id)` dedup table (or rely on Redis consumer-group
   `XACK` plus a short-lived dedupe cache) so at-least-once delivery cannot

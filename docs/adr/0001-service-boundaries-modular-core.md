@@ -20,7 +20,10 @@ characteristics genuinely differ:
   transactionally coupled to it (correlation, state machine, approvals,
   timeline read model). One database, one set of transactions.
 - `alert-ingestion`: separate because it's the public-facing trust
-  boundary with different auth/rate-limiting needs.
+  boundary with different auth/rate-limiting needs. It holds no database
+  credentials of any kind — it authenticates, validates, and forwards an
+  `AlertReceivedCommand`; `incident-core` is the sole writer of the
+  resulting `Alert` row.
 - `investigation-agent`: separate because it's the only component that
   calls Claude, with very different latency/cost/scaling behavior, and
   because isolating it limits the blast radius of a bad model response to

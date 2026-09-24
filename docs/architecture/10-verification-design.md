@@ -19,8 +19,10 @@ another LLM judgment call.
   investigation used — to fetch fresh evidence against the
   `success_criteria` query, on a poll cadence (e.g. every 30s) for up to
   `window_seconds`. Every poll's result is stored as `Evidence` too, linked
-  to the `Verification` via `verifications.evidence_ids`, so "did it work"
-  is exactly as auditable and replayable as "what caused it."
+  to the `Verification` via the normalized `verification_evidence` join
+  table (FK-enforced against `evidence_refs`, not a bare array of IDs —
+  see `06-database-design.md`), so "did it work" is exactly as auditable
+  and replayable as "what caused it."
 - **Pass**: criteria held for the full sustained duration ⇒
   `VerificationCompleted(passed)` ⇒ `RESOLVED`.
 - **Fail**: criteria not met by window end ⇒

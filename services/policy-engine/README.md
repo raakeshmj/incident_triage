@@ -2,14 +2,19 @@
 
 Status: not implemented — design only. See
 `docs/architecture/09-remediation-policy-boundaries.md`,
-`docs/adr/0007-deterministic-versioned-policy-engine.md`.
+`docs/adr/0007-deterministic-versioned-policy-engine.md`,
+`docs/adr/0012-policy-evaluation-context.md`.
 
 ## Responsibility
 
-Deterministic, versioned evaluation of a `RemediationProposal` against the
-active `Policy`: `ALLOW` / `DENY` / `REQUIRE_APPROVAL(+roles)`. Pure
-function — no LLM call, no network I/O, no side effects. Includes the
-global/per-service kill switch and remediation-rate limiting.
+Deterministic, versioned evaluation:
+`evaluate(proposal, action_catalog_entry, policy, policy_context) ->
+PolicyDecision` (`ALLOW` / `DENY` / `REQUIRE_APPROVAL(+roles)`). A true
+pure function — no LLM call, no network I/O, no database or Redis reads,
+no side effects. Every dynamic fact it needs (environment, remediation
+rate, kill-switch state, blast-radius tier, …) arrives pre-computed in
+`policy_context`, built by `incident-core` immediately before the call —
+this service never looks any of that up itself.
 
 ## Owns
 

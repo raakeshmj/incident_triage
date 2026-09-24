@@ -15,13 +15,18 @@ unacceptable.
 ## Decision
 
 Every inbound command to `incident-core` carries a caller-supplied
-idempotency key, checked against a `processed_commands` ledger before
-applying. Every mutation of the `incidents` row uses optimistic
-concurrency (`WHERE version = :expected`). `executions.idempotency_key` is
-a database-level unique constraint, and executor adapters are required to
-use the target system's own idempotency primitives (resource versions, CI
-dedup keys) keyed by it. See `architecture/05-event-model.md` and
-`architecture/06-database-design.md` for the specific mechanisms.
+idempotency key, checked against a `processed_commands` ledger keyed by the
+**composite** `(command_type, idempotency_key)` — not the idempotency key
+alone — before applying, so a key can never be treated as a match across
+two different command types. Every mutation of the `incidents` row uses
+optimistic concurrency (`WHERE version = :expected`). `executions.idempotency_key`
+is a database-level unique constraint, and executor adapters are required
+to use the target system's own idempotency primitives (resource versions,
+CI dedup keys) keyed by it. Alert-level deduplication adds a second,
+independent layer: a partial unique index on `alerts (source,
+external_id)` catches a duplicate `Alert` row even if two differently-keyed
+commands both got past the ledger. See `architecture/05-event-model.md`
+and `architecture/06-database-design.md` for the specific mechanisms.
 
 ## Alternatives considered
 

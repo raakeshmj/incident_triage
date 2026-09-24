@@ -2,7 +2,8 @@
 
 Status: not implemented — design only. See
 `docs/architecture/08-evidence-model.md`,
-`docs/adr/0005-evidence-service-anti-hallucination.md`.
+`docs/adr/0005-evidence-service-anti-hallucination.md`,
+`docs/adr/0013-v1-single-postgres-logical-schemas.md`.
 
 ## Responsibility
 
@@ -20,8 +21,12 @@ anti-hallucination boundary.
 
 ## Owns
 
-Its own evidence store (metadata + raw payload references), separate from
-`incident-core`'s database.
+Its own logical Postgres schema (`evidence`) — metadata + raw payload
+references — behind its own database role scoped to that schema only.
+For v1 this is physically the same Postgres instance as `incident-core`'s
+`incident_core` schema, with no cross-schema grants either direction; full
+physical separation (its own instance, or object storage for large
+payloads) is deferred until scale requires it (ADR-0013).
 
 ## Does not own
 

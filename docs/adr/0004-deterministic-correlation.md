@@ -14,7 +14,15 @@ wrong set of alerts.
 
 Correlation is a deterministic function of alert labels, service topology,
 and a time window — a fingerprint/rule-based match (`correlation_key`),
-implemented as plain code in `incident-core`, not a Claude call.
+implemented as plain code in `incident-core`, not a Claude call. Alert
+persistence and correlation happen in the same database transaction (see
+`02-component-boundaries.md` and `05-event-model.md`): `incident-core`
+receives an `AlertReceivedCommand` from `alert-ingestion`, and in one
+transaction persists the `Alert`, computes `correlation_key`, and either
+links it to an existing open incident or creates a new one — so the
+fingerprint used for correlation is always computed against a durably
+stored `Alert`, never against transient in-flight data held only by
+`alert-ingestion`.
 
 ## Alternatives considered
 

@@ -25,10 +25,19 @@ Invariant: an `Incident` always has ≥1 linked `Alert`. An `Alert` belongs to
 at most one open `Incident` at a time (enforced by a partial unique index —
 see `06-database-design.md`).
 
+Invariant: for sources that provide a stable `external_id`, `(source,
+external_id)` is unique — a retried or duplicate webhook delivery resolves
+to the same `Alert` row rather than creating a second one (see
+`06-database-design.md`, "Alert deduplication and retries").
+
 ### Alert
 
 Raw normalized signal from a source system (Alertmanager, PagerDuty,
-generic webhook).
+generic webhook). **Persisted exclusively by `incident-core`**, inside the
+same transaction that correlates it — `alert-ingestion` authenticates,
+validates, and normalizes the inbound payload, then sends an
+`AlertReceivedCommand`; it never writes this table itself (see
+`02-component-boundaries.md` and `05-event-model.md`).
 
 | Field | Notes |
 |---|---|

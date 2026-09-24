@@ -13,9 +13,13 @@ and hands off to `incident-core` via an idempotent command.
 
 ## Owns
 
-Nothing durable of its own — writes go to `incident-core`'s `alerts` table
-via command, keyed by an idempotency key derived from the source's alert
-fingerprint.
+Nothing. This service has **no database access and no credentials to
+`incident-core`'s database** — it cannot write the `alerts` table even in
+principle. It sends `incident-core` an `AlertReceivedCommand`, idempotency-
+keyed by the source's `external_id` when present, else a content hash of
+the normalized payload plus a debounce time bucket. `incident-core` is the
+one that persists the `Alert` row, in the same transaction that correlates
+it — see `docs/architecture/06-database-design.md`.
 
 ## Does not own
 

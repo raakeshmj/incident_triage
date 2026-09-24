@@ -6,10 +6,11 @@
 investigation-agent            (proposes: action_catalog_id + parameters — data, not code)
         │
         ▼
-incident-core                  (persists RemediationProposal, calls policy-engine)
+incident-core                  (persists RemediationProposal, builds PolicyEvaluationContext,
+                                 calls policy-engine)
         │
         ▼
-policy-engine                  (deterministic: ALLOW | DENY | REQUIRE_APPROVAL, versioned)
+policy-engine                  (pure function of proposal + context: ALLOW | DENY | REQUIRE_APPROVAL, versioned)
         │
         ├── DENY ─────────────────────────────▶ ESCALATED (nothing runs)
         ├── REQUIRE_APPROVAL ──▶ human decision ──▶ approved ──┐
@@ -77,31 +78,87 @@ a proposal row being modified or replayed outside the normal path.
 
 ## Policy engine
 
-- **Pure function**: `(RemediationProposal, ActionCatalogEntry, active Policy version) → PolicyDecision`. No side effects, no external calls, no LLM involvement anywhere in this path.
+- **`evaluate(proposal, action_catalog_entry, policy, policy_context) -> PolicyDecision`**
+  is the engine's entire interface, and the function body performs **zero
+  I/O**: no database queries, no Redis reads, no external calls, no LLM
+  involvement. Every dynamic fact the rules need arrives pre-computed in
+  `policy_context` (below) — this is what makes it an actual pure
+  function, rather than a function that merely looks pure while quietly
+  reaching into ambient state. (An earlier draft of this design had rule
+  examples reference `incident.environment` and
+  `remediation_rate(incident.service, …)` as if they were free lookups —
+  that was an internal inconsistency, corrected here. See ADR-0012.)
 - **Versioned and immutable**: `policy_decisions` records the exact
-  `policy_version` used. Changing policy tomorrow does not change the
-  interpretation of yesterday's decision — required for audit and for
-  eval-harness replay to be meaningful.
+  `policy_version` used **and** the exact `policy_context` snapshot the
+  decision was computed from. Changing policy tomorrow does not change the
+  interpretation of yesterday's decision, and replaying a past decision
+  never depends on the live state of the system at replay time — required
+  for audit and for eval-harness replay to be meaningful.
 - **Implementation**: a small rule DSL evaluated in Python (or OPA/Rego if
   the rule surface grows — deferred, see ADR-0007) — deliberately not a
   general-purpose scripting language, so every possible policy outcome can
   be enumerated and tested.
 
-Example rules (illustrative, not final syntax):
+### PolicyEvaluationContext
+
+All dynamic facts the rules can condition on, assembled once, immediately
+before evaluation:
+
+```python
+class PolicyEvaluationContext(BaseModel):
+    context_id: UUID
+    incident_environment: str
+    incident_severity: str
+    incident_service: str
+    action_blast_radius_tier: int          # denormalized from the action_catalog entry, for rule convenience
+    remediation_count_last_hour: int       # executions for this service in the trailing window
+    prior_attempts_this_incident: int      # incidents.attempt_count at evaluation time
+    global_kill_switch_engaged: bool
+    service_kill_switch_engaged: bool
+    captured_at: datetime
+```
+
+**Who builds it, and when**: `incident-core`, in the same request handler
+that is about to call `policy-engine`, immediately before the call.
+`incident-core` is the one place in the remediation path that does the I/O
+the rules need: it queries `executions` for the remediation-rate count,
+reads `incidents` for environment/severity/service/attempt_count, and
+reads the `kill_switches` table (see `06-database-design.md`) for both
+switches. `policy-engine` never touches any of these directly — it only
+ever receives the already-assembled `PolicyEvaluationContext` value as a
+plain argument.
+
+**Immutable capture for audit/replay**: the exact `PolicyEvaluationContext`
+used is serialized and stored verbatim in `policy_decisions.policy_context`
+(JSONB), in the same row and the same transaction as the decision, and is
+never updated afterward. This is what makes a `PolicyDecision` fully
+replayable on its own: re-running `evaluate(proposal, action_catalog_entry,
+policy, stored_context)` for a given `policy_version` reproduces the
+identical decision, independent of whatever the live remediation rate or
+kill-switch state happens to be at replay time. Without capturing the
+context, replay would silently substitute *current* ambient state for
+*historical* ambient state — a correctness bug the immutable snapshot
+exists specifically to prevent.
+
+Example rules (illustrative, not final syntax) — every dynamic fact is
+read from `context`, never from an ambient lookup:
 
 ```
-DENY   if action.blast_radius_tier >= 3
-DENY   if incident.environment == "prod" and action.id not in prod_allowed_actions
+DENY   if context.action_blast_radius_tier >= 3
+DENY   if context.incident_environment == "prod" and action.id not in prod_allowed_actions
 REQUIRE_APPROVAL(roles=["on_call_engineer", "service_owner"])
-       if incident.environment == "prod" and action.blast_radius_tier >= 1
-ALLOW  if incident.environment == "staging" and action.blast_radius_tier <= 1
-DENY   if remediation_rate(incident.service, window="1h") >= 3   # runaway-loop breaker
-DENY   if global_kill_switch.enabled
+       if context.incident_environment == "prod" and context.action_blast_radius_tier >= 1
+ALLOW  if context.incident_environment == "staging" and context.action_blast_radius_tier <= 1
+DENY   if context.remediation_count_last_hour >= 3        # runaway-loop breaker
+DENY   if context.global_kill_switch_engaged or context.service_kill_switch_engaged
 ```
 
-Notably: **model-reported `confidence` never appears in a policy rule.**
-Policy only ever conditions on the deterministic properties of the
-proposed action and the incident's environment/history.
+Notably: **model-reported `confidence` never appears in a policy rule, and
+never appears in `PolicyEvaluationContext` either** — it is not a
+deterministic fact, and policy must never condition on it. Policy only
+ever conditions on the deterministic properties of the proposed action and
+the incident's environment/history, all captured explicitly in the
+context.
 
 ## Approval
 
@@ -137,13 +194,20 @@ proposed action and the incident's environment/history.
   `resourceVersion` checks, CI job dedup keys) keyed by
   `executions.idempotency_key`, so a redelivered "execute" command cannot
   double-act.
-- **Kill switch**: a single global (and per-service) flag checked by
-  `policy-engine` before every decision — flipping it to "frozen" makes
-  every proposal evaluate to `DENY` immediately, independent of any other
-  rule. This is the manual "stop the robot" control.
-- **Rate limiting**: policy denies further remediation for a
-  service/incident once a short-window remediation count is exceeded
-  (runaway-loop breaker — see `review/critical-review.md`).
+- **Kill switch**: the `kill_switches` table (global and per-service
+  scopes — see `06-database-design.md`), read by `incident-core`'s context
+  builder and surfaced to `policy-engine` as
+  `PolicyEvaluationContext.global_kill_switch_engaged` /
+  `service_kill_switch_engaged` — flipping it makes every subsequent
+  proposal evaluate to `DENY` immediately, independent of any other rule.
+  Unlike `policies`/`action_catalog`, this table is runtime-writable
+  (`platform_admin` only, still routed through `incident-core`) precisely
+  so it can act immediately in an emergency without a deploy — see
+  ADR-0009.
+- **Rate limiting**: `incident-core`'s context builder computes
+  `remediation_count_last_hour` for the incident's service, and the
+  `DENY if context.remediation_count_last_hour >= N` policy rule (above)
+  enforces the runaway-loop breaker — see `review/critical-review.md`.
 
 ## Dry-run mode
 

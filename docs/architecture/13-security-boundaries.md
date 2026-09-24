@@ -59,6 +59,14 @@ reviewed, since it's the only component that can change production state.
 - `evidence-service`'s Git/observability credentials are read-only at the
   IAM level, not just "the code happens not to write" — defense in depth
   against a bug or compromise in that service.
+- **Database credentials**: `incident-core` and `evidence-service` each
+  hold a distinct Postgres role granted privileges only on their own
+  logical schema (`incident_core`, `evidence`) within the shared v1
+  instance — see `06-database-design.md` and ADR-0013. This turns the
+  single-writer ownership rule (`02-component-boundaries.md`) into a
+  database-enforced guarantee rather than only an application-level
+  convention: a bug in one service's code cannot write the other's tables,
+  because its role has no grant to do so.
 - Secrets are managed via the platform's secret manager (e.g. k8s Secrets
   backed by an external secret store — Vault or cloud KMS-backed) and
   injected at runtime; nothing is baked into images or committed to the

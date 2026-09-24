@@ -33,22 +33,27 @@ scaling or trust benefit.
 
 | Data | Sole writer | Everyone else |
 |---|---|---|
-| `alerts` | `alert-ingestion` (insert), `incident-core` (link to incident) | read-only |
+| `alerts` | `incident-core` (persists, correlates, and links to an incident, all in one transaction) | `alert-ingestion` never writes this table — it sends an `AlertReceivedCommand` and incident-core decides what to persist |
 | `incidents`, `investigations`, `hypotheses`, `rca_reports` | `incident-core` | read-only; `investigation-agent` submits *proposed* content via command, incident-core validates and persists |
 | `evidence`, `evidence_blobs` | `evidence-service` | read-only; referenced by ID only |
 | `remediation_proposals`, `policy_decisions` | `incident-core` (persists), `policy-engine` (computes decision, stateless) | investigation-agent proposes; nothing else writes |
 | `approvals` | `incident-core` | web-ui/Slack submit a command; incident-core records it |
 | `executions` | `incident-core` (creates the record with idempotency key before dispatch), `remediation-executor` (updates result via command) | read-only |
-| `verifications` | `incident-core` | evidence-service supplies the data it re-checks against |
+| `verifications`, `verification_evidence` | `incident-core` | evidence-service supplies the data it re-checks against, referenced by ID only |
 | `events` (outbox) | whichever service owns the aggregate that changed | append-only, never mutated |
 | `action_catalog`, `policies` | Configuration, deployed via CI/CD from a reviewed repo path, not runtime-writable by any service | read-only at runtime |
+| `kill_switches` | `incident-core` (the write path is a `platform_admin`-only admin action, still routed through incident-core, never a direct DB edit) | read-only; unlike `action_catalog`/`policies` this *is* runtime-writable, deliberately — see ADR-0009. `policy-engine` never queries it directly, only via the `PolicyEvaluationContext` incident-core builds (see `09-remediation-policy-boundaries.md`) |
 
 ## Communication patterns
 
 - **Commands** (synchronous, request/response, HTTP+Pydantic schemas):
-  `alert-ingestion → incident-core`, `investigation-agent → incident-core`
-  (submit findings), `remediation-executor → incident-core` (report
-  result), `web-ui → incident-core` (everything the UI does).
+  `alert-ingestion → incident-core` (`AlertReceivedCommand`),
+  `investigation-agent → incident-core` (`InvestigationCompletedCommand` /
+  `InvestigationFailedCommand`), `remediation-executor → incident-core`
+  (`ExecutionCompletedCommand` / `ExecutionFailedCommand`),
+  `web-ui → incident-core` (everything the UI does). Every command is
+  idempotent, keyed by `(command_type, idempotency_key)` — see
+  `05-event-model.md` and ADR-0011.
 - **Queries** (synchronous, read-only): `web-ui → incident-core`,
   `investigation-agent → evidence-service` (via tool calls),
   `incident-core → policy-engine` (evaluate proposal).

@@ -1,11 +1,25 @@
 # 06 — Database Design
 
-Single Postgres database for `incident-core` (owns the schema below).
-`evidence-service` owns a separate schema/database for evidence blobs
-(kept physically separate so its different access pattern — large,
-write-once, TTL-eligible payloads — doesn't bloat `incident-core`'s
-transactional tables or its backup/restore time). `eval-harness` uses its
-own store (files or a separate database) — see `11-evaluation-architecture.md`.
+**V1 / local topology**: a single PostgreSQL instance hosts two logical
+schemas — `incident_core` (owned exclusively by `incident-core`) and
+`evidence` (owned exclusively by `evidence-service`) — each with its own
+Postgres role holding privileges only on its own schema. This makes the
+single-writer ownership rule in `02-component-boundaries.md` a
+database-enforced guarantee, not just a code convention: a bug in one
+service cannot write the other's tables, because its role has no grant to
+do so. `eval-harness` uses its own separate store (files or a separate
+database) — see `11-evaluation-architecture.md`.
+
+Physical separation — moving the `evidence` schema to its own database
+instance, or moving large raw payloads to object storage — is deferred
+until scale actually requires it (large payload volume, an independent
+backup/restore cadence, or independent read/write scaling).
+`evidence-service`'s `raw_response_ref` column is already a
+pointer/reference field specifically so that migration changes only where
+the referenced bytes live, not the evidence model itself. See ADR-0013.
+
+The schema below is `incident_core`. `evidence-service`'s `evidence` schema
+is described in `08-evidence-model.md`.
 
 ## `incident-core` schema
 
@@ -26,6 +40,12 @@ CREATE TABLE alerts (
 );
 CREATE INDEX ON alerts (fingerprint);
 CREATE INDEX ON alerts (incident_id);
+-- Dedup for sources that provide a stable external id (e.g. a PagerDuty
+-- incident id). Sources without one rely solely on command-level
+-- idempotency (see "Alert deduplication and retries" below).
+CREATE UNIQUE INDEX alerts_source_external_id
+    ON alerts (source, external_id)
+    WHERE external_id IS NOT NULL;
 
 -- Incidents: the aggregate root
 CREATE TABLE incidents (
@@ -115,6 +135,10 @@ CREATE TABLE policy_decisions (
     decision                  TEXT NOT NULL,       -- ALLOW|DENY|REQUIRE_APPROVAL
     required_approver_roles   TEXT[],
     reasons                   JSONB NOT NULL,
+    policy_context            JSONB NOT NULL,      -- immutable snapshot of the PolicyEvaluationContext
+                                                    -- evaluated against (see 09-remediation-policy-boundaries.md);
+                                                    -- never updated after insert, so replay uses historical
+                                                    -- context, not live ambient state
     evaluated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -147,9 +171,19 @@ CREATE TABLE verifications (
     execution_id   UUID NOT NULL REFERENCES executions(id),
     status         TEXT NOT NULL,                  -- pending|passed|failed
     window_seconds INT NOT NULL,
-    evidence_ids   UUID[] NOT NULL DEFAULT '{}',
     started_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     completed_at   TIMESTAMPTZ
+);
+
+-- Normalized join, replacing a UUID[] column, so every linked evidence
+-- record is FK-enforced against evidence_refs rather than a free-floating
+-- array of IDs that could reference something that was never actually stored.
+CREATE TABLE verification_evidence (
+    verification_id  UUID NOT NULL REFERENCES verifications(id),
+    evidence_id       UUID NOT NULL REFERENCES evidence_refs(id),
+    poll_sequence     INT NOT NULL,       -- ordering within the verification window's polling loop
+    collected_at      TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (verification_id, evidence_id)
 );
 
 -- Outbox / durable event log — append-only, never updated except published_at
@@ -169,12 +203,16 @@ CREATE TABLE events (
 CREATE INDEX ON events (aggregate_id, sequence);
 CREATE INDEX ON events (published_at) WHERE published_at IS NULL;
 
--- Idempotency ledger for inbound commands
+-- Idempotency ledger for inbound commands, scoped per command type so an
+-- idempotency key can never be accidentally shared across different
+-- command types (e.g. an investigation_id and an execution_id colliding
+-- as raw strings).
 CREATE TABLE processed_commands (
-    idempotency_key  TEXT PRIMARY KEY,
     command_type     TEXT NOT NULL,
+    idempotency_key  TEXT NOT NULL,
     result           JSONB NOT NULL,
-    processed_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+    processed_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (command_type, idempotency_key)
 );
 
 -- Reference data, deployed via CI/CD, not runtime-writable by services
@@ -198,17 +236,63 @@ CREATE TABLE policies (
     active         BOOLEAN NOT NULL DEFAULT false,
     effective_from TIMESTAMPTZ NOT NULL
 );
+
+-- Runtime-toggleable emergency control. UNLIKE action_catalog/policies
+-- above, this table IS writable at runtime (platform_admin only, via
+-- incident-core's admin command path, never a direct DB edit by any
+-- other service) — precisely so it can take effect immediately in an
+-- incident without waiting on a deploy. See ADR-0009.
+CREATE TABLE kill_switches (
+    scope        TEXT PRIMARY KEY,        -- 'global' or 'service:<service_name>'
+    engaged      BOOLEAN NOT NULL DEFAULT false,
+    engaged_by   TEXT,
+    engaged_at   TIMESTAMPTZ,
+    reason       TEXT
+);
 ```
+
+## Alert deduplication and retries
+
+Alert sources retry webhook deliveries on timeout or a 5xx response, and
+some deliver at-least-once by design. Two independent layers make this
+safe:
+
+1. **Command-level idempotency (primary).** `alert-ingestion` derives an
+   `idempotency_key` for the `AlertReceivedCommand` it sends — the
+   source's `external_id` when the source provides one, otherwise a
+   content hash of the normalized payload plus a debounce time bucket. A
+   redelivered webhook produces the same key, so `incident-core`'s
+   `processed_commands` ledger (keyed by `(command_type, idempotency_key)`
+   — see `05-event-model.md`) returns the original result without
+   re-processing.
+2. **Database-level dedup (defense in depth).** The
+   `alerts_source_external_id` partial unique index prevents a second
+   `alerts` row for the same `(source, external_id)` even if a bug or a
+   differently-derived idempotency key let a duplicate command through.
+   The insert fails with a constraint violation; the command handler
+   catches that specific violation, fetches the existing `Alert` row by
+   `(source, external_id)`, and proceeds with correlation/linking against
+   it — the same "validate, and also enforce it at the constraint level"
+   pattern used for `remediation_proposals.parameters` and for
+   `executions.idempotency_key` elsewhere in this schema.
+
+For sources that don't supply a stable `external_id` (uncommon, but true
+of some generic webhook senders), dedup relies solely on layer 1 — this is
+a known, accepted limitation, not a gap to silently paper over: such
+sources should be configured with a stable, source-side alert identifier
+whenever the integration supports it.
 
 ## Concurrency mechanisms used, and why
 
 | Mechanism | Where | Prevents |
 |---|---|---|
 | Optimistic concurrency (`version` column) | `incidents` | Two concurrent commands (e.g. a new alert correlating in, and an investigation completing) silently clobbering each other's status change |
-| Partial unique index on `correlation_key` for open incidents | `incidents` | Race between two `AlertReceived` commands both deciding to create a *new* incident for the same signal |
+| Partial unique index on `correlation_key` for open incidents | `incidents` | Race between two `AlertReceivedCommand`s both deciding to create a *new* incident for the same signal |
+| Partial unique index on `(source, external_id)` | `alerts` | A duplicate `Alert` row being created for the same source-reported alert on a retried/duplicate webhook delivery (defense in depth behind command-level idempotency) |
 | Unique `idempotency_key` | `executions` | A retried "execute" command running the remediation twice |
 | Unique `(incident_id, attempt_number)` | `investigations` | Two concurrent investigation-start commands double-launching an attempt |
-| `processed_commands` ledger | all inbound commands to incident-core | Any at-least-once redelivery re-applying a transition |
+| `processed_commands` ledger, keyed by `(command_type, idempotency_key)` | all inbound commands to incident-core | Any at-least-once redelivery re-applying a transition — scoping by command type also prevents an accidental key collision across unrelated command types |
+| FK constraints on `verification_evidence` | `verifications` ↔ `evidence_refs` | A verification citing an evidence record that was never actually stored (previously possible with a bare `UUID[]` column) |
 
 All of the above are enforced at the database constraint level, not just
 in application code, specifically so a bug in a single service instance
@@ -221,7 +305,7 @@ cannot violate them under concurrent load.
 - `alerts`, incident-related tables: retained indefinitely for eval/audit;
   no hard-delete path in v1 (a future ADR covers archival/anonymization if
   needed for compliance).
-- `evidence_blobs` (in evidence-service): TTL-eligible for large raw
-  payloads (e.g. full log dumps) after N days, but the `content_hash` and
-  metadata row is kept forever so citations remain resolvable (see
-  `08-evidence-model.md`).
+- `evidence_blobs` (in evidence-service's `evidence` schema): TTL-eligible
+  for large raw payloads (e.g. full log dumps) after N days, but the
+  `content_hash` and metadata row is kept forever so citations remain
+  resolvable (see `08-evidence-model.md`).

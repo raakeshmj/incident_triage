@@ -31,8 +31,8 @@ insert outbox event, all in one commit. No other service ever writes
 | `TRIAGING` | `SUPPRESSED` | correlation classifies as noise/maintenance window | incident-core | dedup/suppression rule matched (deterministic) | `incident.id` |
 | `TRIAGING` | `INVESTIGATING` | debounce window elapsed | incident-core scheduler | ≥1 linked alert still firing | `incident.id` + `attempt_count` |
 | `TRIAGING` | `CANCELLED` | all linked alerts resolved before debounce elapsed | incident-core | no alert firing | `incident.id` |
-| `INVESTIGATING` | `RCA_READY` | `InvestigationCompleted` (command from investigation-agent) | incident-core validates schema + evidence refs | ≥1 hypothesis with `selected_root_cause`, OR explicit "no confident hypothesis" result | `investigation.id` |
-| `INVESTIGATING` | `ESCALATED` | `InvestigationFailed` (budget exceeded / schema invalid / agent error) | incident-core | attempt exhausted retry budget (see below) | `investigation.id` |
+| `INVESTIGATING` | `RCA_READY` | `InvestigationCompleted` (command from investigation-agent, schema + evidence-citation validated) | incident-core | result contains exactly one hypothesis with status `selected_root_cause` | `investigation.id` |
+| `INVESTIGATING` | `ESCALATED` | `InvestigationCompleted` with `inconclusive_reason` set (no confident root cause / insufficient evidence), **or** `InvestigationFailed` (schema invalid, evidence citation invalid, budget/time/token exceeded, agent crash/timeout per watchdog) | incident-core | no hypothesis reaches `selected_root_cause` | `investigation.id` |
 | `RCA_READY` | `AWAITING_APPROVAL` | policy-engine returns `REQUIRE_APPROVAL` for the proposal | incident-core | proposal exists | `remediation_proposal.id` |
 | `RCA_READY` | `REMEDIATION_IN_PROGRESS` | policy-engine returns `ALLOW` (pre-approved tier) | incident-core | proposal exists, action catalog entry active | `remediation_proposal.id` |
 | `RCA_READY` | `ESCALATED` | policy-engine returns `DENY`, or no proposal and human requests takeover | incident-core / human | — | `remediation_proposal.id` or `incident.id` |
@@ -48,6 +48,23 @@ insert outbox event, all in one commit. No other service ever writes
 | `RESOLVED` | `CLOSED` | post-mortem data captured / timeout | incident-core scheduler | — | `incident.id` |
 | `ESCALATED` | `CLOSED` | human resolves manually | human via web-ui | — | `incident.id` |
 | *(any non-terminal)* | `ESCALATED` | human explicitly takes over | human via web-ui | always allowed — human override is a safety valve | `incident.id` |
+
+## `RCA_READY` means a root cause was selected — nothing else
+
+`RCA_READY` is a strict claim: it is only reachable when the investigation
+selected a root-cause hypothesis. `InvestigationResult.selected_root_cause_index`
+and `InvestigationResult.inconclusive_reason` are mutually exclusive (enforced
+by schema validation — see `07-agent-tool-architecture.md`), so there is no
+path by which an inconclusive or evidence-insufficient investigation can
+land in `RCA_READY`. Both "inconclusive" and "insufficient evidence" route
+directly to `ESCALATED`, identically to a hard investigation failure (bad
+schema, budget exceeded, agent crash) — from the state machine's point of
+view these are all "the autonomous investigation did not produce a usable
+root cause," and all of them hand the incident to a human rather than
+attempting an automatic retry. (Contrast this with `VERIFICATION_FAILED`,
+which *does* retry automatically up to `max_attempts` — that loop exists
+because a failed remediation is a different, better-understood situation
+than an investigation that couldn't reach a conclusion at all.)
 
 ## Alerts arriving mid-lifecycle
 
@@ -87,10 +104,10 @@ is the one exception, and it's deliberate — see
         │
         ▼ (debounce elapsed, still firing)
    INVESTIGATING ◀────────────────────────────┐
-        │                                      │ (retry, attempt<max)
-        ├──(budget exceeded)──▶ ESCALATED      │
+        │                                      │ (verification failed, attempt<max)
+        ├──(inconclusive / insufficient evidence / budget exceeded / schema invalid)──▶ ESCALATED
         ▼                                      │
-    RCA_READY ──(deny / no action)───▶ ESCALATED
+    RCA_READY (root cause selected) ──(deny / no action)───▶ ESCALATED
         │        └─(human accepts, no fix)──▶ CLOSED
         ├──(REQUIRE_APPROVAL)──▶ AWAITING_APPROVAL
         │                              ├─(approve)─┐

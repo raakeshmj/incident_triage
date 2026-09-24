@@ -32,9 +32,12 @@ These are referenced throughout the docs and enforced by architecture, not
 convention:
 
 1. **Single writer per aggregate.** `incident-core` is the only process
-   permitted to write `incidents`, `investigations`, `hypotheses`,
-   `remediation_proposals`, `policy_decisions`, `approvals`, `executions`,
-   `verifications`. Every other service sends it a command; it decides.
+   permitted to write `alerts`, `incidents`, `investigations`,
+   `hypotheses`, `remediation_proposals`, `policy_decisions`, `approvals`,
+   `executions`, `verifications`. Every other service sends it a command;
+   it decides. This is enforced at the database level, not just in code —
+   each service's Postgres role is scoped to only its own logical schema
+   (see `architecture/06-database-design.md` and ADR-0013).
 2. **The LLM never calls a tool that mutates production state.** Claude's
    only outputs are structured data (hypotheses, evidence citations, a
    remediation *proposal* referencing a catalog action by ID). It cannot
@@ -45,13 +48,20 @@ convention:
    query against a real system, captured *before* it reaches the model's
    context on the way back out. Free-text claims from the model that are
    not backed by an evidence ID are rejected at the schema boundary.
-4. **Policy is deterministic and versioned.** The same proposal + the same
-   policy version always yields the same decision. No LLM call in the
-   policy path.
+4. **Policy is deterministic and versioned.** The same proposal, the same
+   `action_catalog` entry, the same policy version, and the same
+   `PolicyEvaluationContext` always yield the same decision.
+   `policy-engine` performs no I/O of its own — every dynamic fact it
+   needs (environment, remediation rate, kill-switch state, …) is built by
+   `incident-core` and passed in explicitly, then captured immutably
+   alongside the decision for replay. No LLM call anywhere in the policy
+   path.
 5. **Approval defaults to required.** A remediation only skips human
    approval if a versioned policy explicitly allow-lists it for the given
    blast-radius tier and environment. Timeouts deny or escalate — they
    never auto-approve.
-6. **Idempotency everywhere state changes.** Every command, event, and
-   execution carries an idempotency key; retries and redeliveries must be
-   safe by construction.
+6. **Idempotency everywhere state changes.** Every command carries an
+   idempotency key scoped by command type (`(command_type,
+   idempotency_key)`), every event carries a stable `event_id`, and every
+   execution carries a unique `idempotency_key`; retries and redeliveries
+   must be safe by construction.

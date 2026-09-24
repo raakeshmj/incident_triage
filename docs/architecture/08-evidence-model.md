@@ -66,9 +66,13 @@ isn't already a durable, independently-fetched record.**
 `incident-core.evidence_refs` stores everything except `raw_response_ref`'s
 target payload and the full raw blob — it holds the metadata and
 `content_hash` needed to validate citations and render the RCA, keeping
-`incident-core`'s database free of large blobs. Large raw payloads live in
-object storage or a dedicated evidence database owned by `evidence-service`
-(see `06-database-design.md`).
+`incident-core`'s schema free of large blobs. Large raw payloads live in
+object storage or within `evidence-service`'s own `evidence` Postgres
+schema — for v1, that schema lives in the same shared Postgres instance as
+`incident-core`'s `incident_core` schema, under a separate database role
+with no cross-schema grants (see `06-database-design.md` and ADR-0013).
+Physical separation onto its own instance is deferred until scale requires
+it.
 
 ## Confidence, staleness, and contradiction
 

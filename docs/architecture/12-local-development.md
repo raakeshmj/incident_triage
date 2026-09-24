@@ -13,7 +13,11 @@
 
 1. **`docker-compose`** (`infra/docker-compose/`): Postgres, Redis,
    Prometheus, Loki, Grafana, and all the `services/*` processes, for fast
-   inner-loop development. This is the default for day-to-day work.
+   inner-loop development. This is the default for day-to-day work. A
+   single Postgres container hosts both the `incident_core` and `evidence`
+   logical schemas (see `06-database-design.md` and ADR-0013), each
+   provisioned with its own least-privilege role — mirroring the intended
+   production topology at this stage, not a dev-only shortcut.
 2. **`kind`** (`infra/kind/`): a local Kubernetes cluster for testing
    `remediation-executor`'s Kubernetes adapters and `k8s`-specific
    `action_catalog` entries (restart/rollback/scale) against something

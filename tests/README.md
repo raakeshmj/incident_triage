@@ -15,7 +15,14 @@
   Postgres (and, for the crash-recovery scenario, the outbox relay
   directly): the six Phase 2 correlation scenarios in
   `test_correlation_scenarios.py`, plus the original Phase 1 alert flow.
-  `make test-e2e`.
+  `test_alertmanager_webhook.py` covers the Phase 3 Alertmanager webhook
+  adapter's payload mapping and correlation behavior (still in-process).
+  `test_alertmanager_container.py` is different: it starts the *real*
+  `prom/alertmanager` Docker container against the *real*
+  `infrastructure/alertmanager/alertmanager.yml` and a real uvicorn server
+  for the app, and fires a synthetic alert through Alertmanager's own API
+  -- the one hop Phase 3 requires not to fake. It auto-skips (like the
+  Postgres/Redis fixtures) if Docker isn't reachable. `make test-e2e`.
 - `fakes.py` -- fault-injection helpers: `FlakyPublisher` /
   `AlwaysFailingPublisher` (outbox relay retry testing) and
   `FakeRedisStreams` (a minimal in-memory Redis Streams double for

@@ -2,11 +2,17 @@
 
 Autonomous Production Incident Triage & Response platform.
 
-**Status: Phase 1 + Phase 2 implemented.** A working vertical slice, now
-with a production-shaped event transport and a real correlation engine:
+**Status: Phase 1 + Phase 2 + Phase 3 implemented.** A working vertical
+slice with a production-shaped event transport, a real correlation
+engine, and now a realistic local production environment feeding it real
+alerts:
 
 ```
-external alert -> alert-ingestion -> AlertReceivedCommand -> incident-core
+checkout/payment/inventory services (simulated, chaos-injectable)
+    -> OpenTelemetry traces/metrics/logs -> Prometheus / Loki / Grafana
+    -> Prometheus alert rules -> Alertmanager
+    -> alert-ingestion (POST /api/v1/alerts/alertmanager) -> AlertReceivedCommand
+    -> incident-core
     -> [correlation engine decides: new incident, or join an existing one]
     -> PostgreSQL -> AlertReceived / IncidentCreated / AlertCorrelated
     -> transactional outbox -> sharded Redis Streams -> durable consumer
@@ -14,11 +20,13 @@ external alert -> alert-ingestion -> AlertReceivedCommand -> incident-core
 
 See [`docs/`](docs/) for the full architecture,
 [`docs/implementation-order.md`](docs/implementation-order.md) for what
-this maps to and what's next, and ADR-0014/ADR-0015 for the two biggest
-Phase 2 decisions (event transport, correlation engine). Nothing beyond
-this scope is implemented yet: no Claude/LLM agent, no evidence service,
-no policy engine, no remediation, no Kubernetes/Prometheus/Loki, no
-dashboard.
+this maps to and what's next, ADR-0014/ADR-0015 for the two biggest
+Phase 2 decisions (event transport, correlation engine), and
+[`docs/architecture/14-observability-and-chaos.md`](docs/architecture/14-observability-and-chaos.md)
+(+ ADR-0016/ADR-0017) for Phase 3's simulated services, telemetry, alert
+rules, and chaos scenarios. Nothing beyond this scope is implemented yet:
+no Claude/LLM agent, no evidence service, no policy engine, no
+remediation, no Kubernetes, no Incident Intelligence dashboard.
 
 ## Repository layout
 
@@ -42,8 +50,13 @@ packages/
   policy/       reserved (Phase 3 -- policy engine)
   evaluation/   reserved (Phase 5+ -- offline eval harness)
 
-infrastructure/ docker-compose init scripts (Postgres schemas/roles)
-simulator/      send_alert.py -- CLI to POST a synthetic alert
+infrastructure/ docker-compose configs: Postgres schemas/roles, and
+                Phase 3's otel-collector/prometheus/loki+promtail/grafana/
+                alertmanager
+simulator/      send_alert.py (synthetic alert CLI), services/ (3
+                simulated production services + load-generator, Phase 3),
+                chaos/ (7 chaos scenarios + CLI), scenarios.md (5+
+                documented incidents)
 evals/          reserved for the eval harness's golden dataset
 scripts/        dev-workflow helpers (wait_for_services.py)
 tests/          unit / integration / e2e (see tests/README.md)
@@ -103,6 +116,42 @@ make run-worker      # outbox relay: Postgres -> Redis
 make run-consumer    # event consumer: Redis -> metrics, with DLQ + dedup
 ```
 
+## Phase 3: the local production environment
+
+Three simulated services (checkout -> payment -> inventory), a load
+generator, and a full observability/alerting stack, so Incident
+Intelligence receives *real* Alertmanager alerts instead of only
+hand-sent synthetic ones. See
+[`docs/architecture/14-observability-and-chaos.md`](docs/architecture/14-observability-and-chaos.md)
+for the full design and [`simulator/scenarios.md`](simulator/scenarios.md)
+for 6 worked incident scenarios.
+
+```bash
+make run-api           # the API must be running -- Alertmanager delivers to it
+make infra-up-full     # docker compose up -d: adds the simulated services,
+                        # load generator, otel-collector, prometheus, loki,
+                        # promtail, grafana, alertmanager to postgres/redis
+```
+
+Then, in a few minutes (the load generator needs to produce enough
+traffic for the alert rules' `rate()` windows):
+
+- Prometheus: http://localhost:9090 (Alerts tab shows pending/firing rules)
+- Alertmanager: http://localhost:9093
+- Grafana: http://localhost:3000 (anonymous admin access, local dev only)
+- checkout/payment/inventory: http://localhost:8001/8002/8003 (`/health`, `/metrics`)
+
+Trigger a chaos scenario and watch it become a real incident:
+
+```bash
+python -m simulator.chaos.cli list                                       # see all 7 scenarios
+python -m simulator.chaos.cli start high-latency --service checkout-service
+# ...wait ~45s for HighP95Latency to fire in Prometheus, then Alertmanager
+# delivers it to POST /api/v1/alerts/alertmanager...
+curl -s localhost:8000/api/v1/incidents/<id>   # the incident it created
+python -m simulator.chaos.cli stop --service checkout-service
+```
+
 ## Tests
 
 ```bash
@@ -136,6 +185,7 @@ make infra-down   # docker compose down -v (drops the Postgres volume too)
 - [`docs/adr/`](docs/adr/) — architecture decision records
 - [`docs/review/critical-review.md`](docs/review/critical-review.md) — self-critique
 - [`docs/implementation-order.md`](docs/implementation-order.md) — build sequence
+- [`simulator/scenarios.md`](simulator/scenarios.md) — Phase 3's 6 worked incident scenarios
 
 ## Core rule
 

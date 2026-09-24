@@ -28,5 +28,151 @@ services:
       timeout: 5s
       retries: 20
 
+  # --- Phase 3: simulated production services -----------------------------
+  # See docs/architecture/14-observability-and-chaos.md and
+  # simulator/services/common/ for the shared telemetry/chaos runtime.
+
+  checkout-service:
+    build:
+      context: .
+      dockerfile: simulator/services/checkout-service/Dockerfile
+    environment:
+      SERVICE_NAME: checkout-service
+      SERVICE_PORT: "8001"
+      ENVIRONMENT: production
+      REGION: us-east-1
+      SERVICE_VERSION: "1.0.0"
+      SERVICE_PREVIOUS_VERSION: "0.9.0"
+      SERVICE_DEPLOYED_AT: "2024-01-15T09:00:00Z"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8001:8001"
+    depends_on:
+      - redis
+      - otel-collector
+      - payment-service
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: simulator/services/payment-service/Dockerfile
+    environment:
+      SERVICE_NAME: payment-service
+      SERVICE_PORT: "8002"
+      ENVIRONMENT: production
+      REGION: us-east-1
+      SERVICE_VERSION: "1.0.0"
+      SERVICE_PREVIOUS_VERSION: "0.9.0"
+      SERVICE_DEPLOYED_AT: "2024-01-10T09:00:00Z"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8002:8002"
+    depends_on:
+      - redis
+      - otel-collector
+      - inventory-service
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: simulator/services/inventory-service/Dockerfile
+    environment:
+      SERVICE_NAME: inventory-service
+      SERVICE_PORT: "8003"
+      ENVIRONMENT: production
+      REGION: us-east-1
+      SERVICE_VERSION: "1.0.0"
+      SERVICE_PREVIOUS_VERSION: "0.9.0"
+      SERVICE_DEPLOYED_AT: "2024-01-05T09:00:00Z"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8003:8003"
+    depends_on:
+      - redis
+      - otel-collector
+
+  load-generator:
+    build:
+      context: .
+      dockerfile: simulator/services/load-generator/Dockerfile
+    environment:
+      CHECKOUT_URL: http://checkout-service:8001
+      REQUESTS_PER_SECOND: "5"
+    depends_on:
+      - checkout-service
+
+  # --- Phase 3: observability stack ----------------------------------------
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./infrastructure/otel/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infrastructure/prometheus/alerts:/etc/prometheus/alerts:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - alertmanager
+
+  loki:
+    image: grafana/loki:3.2.1
+    command: ["-config.file=/etc/loki/loki-config.yaml"]
+    volumes:
+      - ./infrastructure/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+
+  promtail:
+    image: grafana/promtail:3.2.1
+    command: ["-config.file=/etc/promtail/promtail-config.yaml"]
+    volumes:
+      - ./infrastructure/promtail/promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    volumes:
+      - ./infrastructure/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+    extra_hosts:
+      # Alertmanager (containerized) delivers to the API, which runs on the
+      # host via `make run-api` -- see infrastructure/alertmanager/alertmanager.yml.
+      - "host.docker.internal:host-gateway"
+
 volumes:
   pgdata:
+  prometheus-data:
+  loki-data:
+  grafana-data:

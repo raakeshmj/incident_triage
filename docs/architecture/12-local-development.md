@@ -1,5 +1,15 @@
 # 12 — Local Development Architecture
 
+**Implementation status**: Phase 3 (build) implemented this document's
+docker-compose layer's observability stack (Prometheus, Loki, Grafana,
+plus Alertmanager and an OTel Collector this document didn't originally
+list) and three simulated `services/*` processes, at the repo root
+`docker-compose.yml` and `simulator/services/` rather than the
+`infra/docker-compose/` / `services/*` paths sketched below (Phase 1
+already established the actual monorepo layout differently -- see the
+root README). See `docs/architecture/14-observability-and-chaos.md`. The
+`kind` layer and `evidence-service` record/replay modes remain unstarted.
+
 ## Goals
 
 - A developer can run the whole pipeline end-to-end on a laptop.

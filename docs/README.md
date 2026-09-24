@@ -17,6 +17,7 @@ Status: **Architecture foundation, pre-implementation.**
 11. [architecture/11-evaluation-architecture.md](architecture/11-evaluation-architecture.md) — offline eval / replay harness
 12. [architecture/12-local-development.md](architecture/12-local-development.md) — dev environment, fixtures
 13. [architecture/13-security-boundaries.md](architecture/13-security-boundaries.md) — trust zones, RBAC, secrets
+14. [architecture/14-observability-and-chaos.md](architecture/14-observability-and-chaos.md) — Phase 3's simulated services, telemetry, alerting, chaos scenarios
 
 Decisions: [adr/](adr/) — one ADR per significant, hard-to-reverse choice.
 

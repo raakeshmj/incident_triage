@@ -19,6 +19,17 @@ unstarted. Documented here rather than renumbering the phases below, which
 were written before either build session and still describe the right next
 steps once evidence-service's turn comes.
 
+Build session "Phase 3" is orthogonal to this document's numbering
+entirely: it built the *environment* Incident Intelligence observes
+(three simulated services, a full local observability stack, real
+Prometheus alerting, Alertmanager delivering into the existing
+alert-ingestion path — `docs/architecture/14-observability-and-chaos.md`)
+rather than a new Incident Intelligence component. It deepens this
+document's Phase 0/§12 local-dev environment and gives Phase 1's
+alert-ingestion a second, real alert source alongside the synthetic one —
+it does not touch this document's actual "Phase 3 — Policy engine and
+action catalog," which remains unstarted.
+
 ## Phase 0 — Foundations (no services yet)
 
 - `libs/schemas`: Pydantic models for the domain entities, event envelope,

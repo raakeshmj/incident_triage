@@ -1,0 +1,45 @@
+# See docs/architecture/14-observability-and-chaos.md.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+rule_files:
+  - /etc/prometheus/alerts/*.yml
+
+# honor_labels: true -- each service's own `service` metric attribute
+# (set in simulator/services/common/telemetry.py) wins over the scrape
+# target's `service` label instead of being renamed `exported_service`;
+# `environment`/`region` aren't set on the metrics themselves, so those
+# always come from the target labels below regardless.
+scrape_configs:
+  - job_name: checkout-service
+    honor_labels: true
+    static_configs:
+      - targets: ["checkout-service:8001"]
+        labels:
+          service: checkout-service
+          environment: production
+          region: us-east-1
+
+  - job_name: payment-service
+    honor_labels: true
+    static_configs:
+      - targets: ["payment-service:8002"]
+        labels:
+          service: payment-service
+          environment: production
+          region: us-east-1
+
+  - job_name: inventory-service
+    honor_labels: true
+    static_configs:
+      - targets: ["inventory-service:8003"]
+        labels:
+          service: inventory-service
+          environment: production
+          region: us-east-1

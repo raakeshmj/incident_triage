@@ -1,0 +1,33 @@
+# Delivers real alerts into the EXISTING alert-ingestion endpoint --
+# apps/api/routers/alerts.py's `POST /api/v1/alerts/alertmanager` -- rather
+# than a parallel path. See docs/architecture/14-observability-and-chaos.md
+# ("Alertmanager payload mapping") for the field-by-field translation into
+# AlertReceivedCommand.
+#
+# `host.docker.internal` requires the `extra_hosts: host-gateway` entry on
+# the alertmanager service in docker-compose.yml -- the API/worker
+# continue to run on the host via `make run-api` (Phase 1/2's existing
+# hot-reload dev workflow), not inside a container, so Alertmanager (which
+# *is* containerized) needs a route back out to the host. This is a
+# local-dev-only routing detail; see ADR-0017.
+global:
+  resolve_timeout: 1m
+
+route:
+  receiver: incident-intelligence
+  group_by: ["alertname", "service"]
+  group_wait: 5s
+  group_interval: 10s
+  repeat_interval: 1h
+
+receivers:
+  - name: incident-intelligence
+    webhook_configs:
+      - url: "http://host.docker.internal:8000/api/v1/alerts/alertmanager"
+        send_resolved: true
+        http_config:
+          authorization:
+            type: Bearer
+            # Matches apps/api/config.py's ALERTMANAGER_WEBHOOK_TOKEN default.
+            # Override both together via .env for anything beyond local dev.
+            credentials: dev-local-alertmanager-token

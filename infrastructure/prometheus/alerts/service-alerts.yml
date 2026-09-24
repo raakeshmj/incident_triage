@@ -1,0 +1,99 @@
+# 6 alert rule categories per Phase 3's spec. Thresholds and `for:`
+# durations are deliberately low (this is a local demo environment, not
+# production tuning) so a chaos scenario reliably fires its rule within
+# well under two minutes -- see simulator/scenarios.md for exact expected
+# timings. `runbook_url` values are placeholders for this local
+# environment (there is no real runbooks.example.com); see
+# docs/architecture/14-observability-and-chaos.md.
+groups:
+  - name: incident-intelligence-service-alerts
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          sum by (service, environment, region) (rate(http_requests_errors_total[1m]))
+          /
+          sum by (service, environment, region) (rate(http_requests_total[1m]))
+          > 0.1
+        for: 30s
+        labels:
+          severity: critical
+          alert_type: availability
+        annotations:
+          summary: "{{ $labels.service }} error rate is {{ $value | humanizePercentage }}"
+          description: >-
+            More than 10% of requests to {{ $labels.service }} in
+            {{ $labels.environment }}/{{ $labels.region }} have returned 5xx over the
+            last minute.
+          runbook_url: "https://runbooks.example.com/incident-intelligence/high-error-rate"
+
+      - alert: HighP95Latency
+        expr: |
+          histogram_quantile(0.95,
+            sum by (service, environment, region, le) (rate(http_request_duration_seconds_bucket[1m]))
+          ) > 1
+        for: 30s
+        labels:
+          severity: warning
+          alert_type: performance
+        annotations:
+          summary: "{{ $labels.service }} p95 latency is {{ $value | humanizeDuration }}"
+          description: >-
+            {{ $labels.service }} in {{ $labels.environment }}/{{ $labels.region }} has a
+            p95 request latency above 1s over the last minute.
+          runbook_url: "https://runbooks.example.com/incident-intelligence/high-latency"
+
+      - alert: ServiceUnavailable
+        expr: up{job=~"checkout-service|payment-service|inventory-service"} == 0
+        for: 15s
+        labels:
+          severity: critical
+          alert_type: availability
+        annotations:
+          summary: "{{ $labels.service }} is unreachable"
+          description: >-
+            Prometheus has been unable to scrape {{ $labels.service }} in
+            {{ $labels.environment }}/{{ $labels.region }} for 15s.
+          runbook_url: "https://runbooks.example.com/incident-intelligence/service-unavailable"
+
+      - alert: DependencyFailureRate
+        expr: |
+          sum by (service, environment, region, dependency) (rate(dependency_call_errors_total[1m]))
+          /
+          sum by (service, environment, region, dependency) (rate(dependency_call_duration_seconds_count[1m]))
+          > 0.2
+        for: 30s
+        labels:
+          severity: critical
+          alert_type: dependency
+        annotations:
+          summary: "{{ $labels.service }} -> {{ $labels.dependency }} call failure rate is {{ $value | humanizePercentage }}"
+          description: >-
+            {{ $labels.service }} in {{ $labels.environment }}/{{ $labels.region }} is
+            seeing elevated failures calling its dependency {{ $labels.dependency }}.
+          runbook_url: "https://runbooks.example.com/incident-intelligence/dependency-failure"
+
+      - alert: CPUSaturation
+        expr: avg_over_time(process_cpu_usage_ratio[1m]) > 0.85
+        for: 1m
+        labels:
+          severity: warning
+          alert_type: saturation
+        annotations:
+          summary: "{{ $labels.service }} CPU usage is {{ $value | humanizePercentage }}"
+          description: >-
+            {{ $labels.service }} in {{ $labels.environment }}/{{ $labels.region }} has
+            averaged over 85% CPU for at least a minute.
+          runbook_url: "https://runbooks.example.com/incident-intelligence/cpu-saturation"
+
+      - alert: MemoryPressure
+        expr: process_memory_usage_bytes > 200 * 1024 * 1024
+        for: 1m
+        labels:
+          severity: warning
+          alert_type: saturation
+        annotations:
+          summary: "{{ $labels.service }} memory usage is {{ $value | humanize1024 }}B"
+          description: >-
+            {{ $labels.service }} in {{ $labels.environment }}/{{ $labels.region }} has
+            held over 200MB resident memory for at least a minute.
+          runbook_url: "https://runbooks.example.com/incident-intelligence/memory-pressure"

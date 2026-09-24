@@ -1,0 +1,28 @@
+# OTel Collector: receives traces (OTLP/HTTP+gRPC) from the 3 simulated
+# services and logs them via the `debug` exporter. Metrics are scraped by
+# Prometheus directly from each service's own /metrics (see
+# infrastructure/prometheus/prometheus.yml) -- the collector's job here is
+# purely trace propagation/inspection, not a metrics pipeline hop.
+# See docs/architecture/14-observability-and-chaos.md.
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+
+exporters:
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]

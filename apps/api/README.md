@@ -1,8 +1,16 @@
 # apps/api
 
-The public HTTP surface for Phase 1: alert-ingestion's
-`POST /api/v1/alerts` and incident-core's `GET /api/v1/incidents/{id}`,
-served from one FastAPI process.
+The public HTTP surface: alert-ingestion's `POST /api/v1/alerts` (Phase 1)
+and `POST /api/v1/alerts/alertmanager` (Phase 3), and incident-core's
+`GET /api/v1/incidents/{id}`, served from one FastAPI process.
+
+`POST /api/v1/alerts/alertmanager` (`apps/api/routers/alerts.py`) adapts
+Alertmanager's own webhook payload shape into the same
+`AlertReceivedCommand` the direct-POST endpoint builds -- same component,
+same DB boundary, not a parallel ingestion path. See
+`docs/architecture/14-observability-and-chaos.md`'s "Alertmanager payload
+mapping" for the field-by-field translation and ADR-0017 for why it's
+reachable via `host.docker.internal` from the containerized Alertmanager.
 
 ## Why one process for two architectural components
 

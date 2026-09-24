@@ -251,6 +251,62 @@ CREATE TABLE kill_switches (
 );
 ```
 
+## Phase 2 additions (as implemented)
+
+The outbox table above is named `events` in this document's original
+schema sketch; the actual implementation names it `outbox_events` (per an
+explicit Phase 1 instruction) — noted here once so the name mismatch isn't
+mistaken for drift. Phase 2 adds, via migration `0002_events_correlation`:
+
+```sql
+ALTER TABLE outbox_events
+    ADD COLUMN producer            TEXT NOT NULL DEFAULT 'incident-core',
+    ADD COLUMN publish_attempts    INT  NOT NULL DEFAULT 0,
+    ADD COLUMN last_publish_error  TEXT;
+```
+
+`producer` is the canonical envelope field (`05-event-model.md`).
+`publish_attempts` / `last_publish_error` are diagnostic-only bookkeeping
+for the outbox relay's retry behavior (ADR-0014) — never used to decide
+correctness, only to answer "why hasn't this published yet" without
+grepping logs. `publish_attempts` counts relay *passes* that attempted the
+event, not raw `publish()` calls within a pass (a pass's internal retries
+are only visible via the `outbox.publish_retry` metric/log).
+
+```sql
+-- Consumer-side idempotency ledger (ADR-0014) -- keyed by the event's own
+-- event_id, never a Redis-specific message id, so it survives both a
+-- relay-side duplicate publish and a consumer restart.
+CREATE TABLE consumed_events (
+    consumer_name  TEXT NOT NULL,
+    event_id       UUID NOT NULL,
+    processed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (consumer_name, event_id)
+);
+
+-- Supports the correlation engine's candidate query
+-- (repository.find_open_incident_candidates, ADR-0015).
+CREATE INDEX ix_incidents_service_environment_status
+    ON incidents (service, environment, status);
+
+-- Supports finding an incident's most-recently-received alert (temporal
+-- proximity scoring).
+CREATE INDEX ix_alerts_incident_id_received_at
+    ON alerts (incident_id, received_at DESC);
+```
+
+**`correlation_key` semantics changed in Phase 2.** In Phase 1 it was
+simply the triggering alert's `fingerprint`. As of the multi-signal
+correlation engine (ADR-0015), a *new* incident's `correlation_key` is
+`{fingerprint}:{time_bucket}` — disambiguating it from a stale incident
+that happens to share a fingerprint but fell outside the correlation
+window, which the plain-fingerprint scheme could not do (a real bug caught
+by `tests/integration/test_late_arriving_alert.py` during Phase 2
+implementation, not a hypothetical). `correlation_key` is consequently an
+internal uniqueness token, not a stable "the identity of this alert type"
+value — code that wants the latter should read the initiating alert's
+`fingerprint` directly.
+
 ## Alert deduplication and retries
 
 Alert sources retry webhook deliveries on timeout or a 5xx response, and
@@ -293,10 +349,12 @@ whenever the integration supports it.
 | Unique `(incident_id, attempt_number)` | `investigations` | Two concurrent investigation-start commands double-launching an attempt |
 | `processed_commands` ledger, keyed by `(command_type, idempotency_key)` | all inbound commands to incident-core | Any at-least-once redelivery re-applying a transition — scoping by command type also prevents an accidental key collision across unrelated command types |
 | FK constraints on `verification_evidence` | `verifications` ↔ `evidence_refs` | A verification citing an evidence record that was never actually stored (previously possible with a bare `UUID[]` column) |
+| `consumed_events` ledger, keyed by `(consumer_name, event_id)` | any Redis Streams consumer | The same at-least-once redelivery problem as `processed_commands`, on the consumer side of the event bus instead of the command side (Phase 2, ADR-0014) |
+| `pg_advisory_xact_lock(hash(service, environment))` | correlation decisions (Phase 2, ADR-0015) | Write skew: two concurrent alerts for the same service+environment, both reading zero matching candidates and independently deciding to create a new incident. This is the one mechanism in this table that is *not* a database constraint — an advisory lock depends on every code path remembering to acquire it — which is exactly why the partial unique index on `correlation_key` above remains as a backstop even though the lock makes it rarely the deciding mechanism in practice. |
 
-All of the above are enforced at the database constraint level, not just
-in application code, specifically so a bug in a single service instance
-cannot violate them under concurrent load.
+All but the advisory lock are enforced at the database constraint level,
+not just in application code, specifically so a bug in a single service
+instance cannot violate them under concurrent load.
 
 ## Retention
 

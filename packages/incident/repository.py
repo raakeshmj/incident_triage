@@ -10,16 +10,24 @@ docs/architecture/06-database-design.md's "Concurrency mechanisms" table.
 
 from __future__ import annotations
 
+import hashlib
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, text
+from sqlalchemy import and_, func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from packages.domain.commands import AlertReceivedCommand
+from packages.domain.correlation_engine import CorrelationCandidate
 from packages.domain.enums import CLOSED_INCIDENT_STATUSES, AlertSeverity, IncidentStatus
-from packages.incident.db.models import AlertRow, IncidentRow, OutboxEventRow, ProcessedCommandRow
+from packages.incident.db.models import (
+    AlertRow,
+    ConsumedEventRow,
+    IncidentRow,
+    OutboxEventRow,
+    ProcessedCommandRow,
+)
 
 _CLOSED_STATUS_VALUES = tuple(status.value for status in CLOSED_INCIDENT_STATUSES)
 
@@ -172,6 +180,87 @@ def _select_open_incident(session: Session, correlation_key: str) -> IncidentRow
     return session.execute(stmt).scalar_one_or_none()
 
 
+def _advisory_lock_key(service: str, environment: str) -> int:
+    digest = hashlib.sha256(f"{service}:{environment}".encode()).digest()[:8]
+    return int.from_bytes(digest, "big", signed=True)
+
+
+def acquire_correlation_lock(session: Session, *, service: str, environment: str) -> None:
+    """Serializes "read candidate incidents, decide, write" for a given
+    (service, environment) pair within the current transaction --
+    released automatically at commit/rollback. Needed because multi-signal
+    correlation scoring reads several rows before deciding what to write,
+    which a unique index alone cannot make race-safe (two concurrent,
+    differently-fingerprinted alerts that *should* merge could otherwise
+    both see zero candidates and each create their own incident). See
+    ADR-0015 and docs/review/critical-review.md, "Race conditions".
+    """
+    key = _advisory_lock_key(service, environment)
+    session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
+
+
+def find_open_incident_candidates(
+    session: Session,
+    *,
+    service: str,
+    environment: str,
+    now: datetime,
+    lookback_seconds: int,
+) -> list[CorrelationCandidate]:
+    """Open incidents for this (service, environment), each paired with its
+    most recently received alert, bounded to incidents whose most recent
+    alert arrived within `lookback_seconds` of `now`. That bound is a
+    query-level cap, not just a scoring input -- an incident with no
+    activity in, say, the last 15 minutes is not a plausible correlation
+    target regardless of what the rules would otherwise say, and excluding
+    it keeps the query cheap. See docs/architecture/04-incident-state-machine.md's
+    Phase 2 addendum ("Case F: late-arriving alerts").
+    """
+    cutoff = now - timedelta(seconds=lookback_seconds)
+    latest_alert = (
+        select(
+            AlertRow.incident_id.label("incident_id"),
+            func.max(AlertRow.received_at).label("max_received_at"),
+        )
+        .group_by(AlertRow.incident_id)
+        .subquery()
+    )
+    stmt = (
+        select(IncidentRow, AlertRow)
+        .join(latest_alert, IncidentRow.id == latest_alert.c.incident_id)
+        .join(
+            AlertRow,
+            and_(
+                AlertRow.incident_id == latest_alert.c.incident_id,
+                AlertRow.received_at == latest_alert.c.max_received_at,
+            ),
+        )
+        .where(
+            IncidentRow.service == service,
+            IncidentRow.environment == environment,
+            IncidentRow.status.notin_(_CLOSED_STATUS_VALUES),
+            latest_alert.c.max_received_at >= cutoff,
+        )
+    )
+    return [
+        CorrelationCandidate(
+            incident_id=incident.id,
+            correlation_key=incident.correlation_key,
+            status=incident.status,
+            service=incident.service,
+            environment=incident.environment,
+            most_recent_alert_received_at=alert.received_at,
+            most_recent_alert_labels=alert.labels,
+            most_recent_alert_fingerprint=alert.fingerprint,
+        )
+        for incident, alert in session.execute(stmt).all()
+    ]
+
+
+def touch_incident_updated_at(session: Session, incident: IncidentRow) -> None:
+    incident.updated_at = datetime.now(UTC)
+
+
 def get_incident_with_alerts(
     session: Session, incident_id: uuid.UUID
 ) -> tuple[IncidentRow, list[AlertRow]] | None:
@@ -194,6 +283,7 @@ def insert_outbox_event(
     aggregate_type: str,
     aggregate_id: uuid.UUID,
     payload: dict,
+    producer: str = "incident-core",
     correlation_id: uuid.UUID | None = None,
     causation_id: uuid.UUID | None = None,
 ) -> OutboxEventRow:
@@ -205,6 +295,7 @@ def insert_outbox_event(
         aggregate_id=aggregate_id,
         correlation_id=correlation_id,
         causation_id=causation_id,
+        producer=producer,
         payload=payload,
         occurred_at=datetime.now(UTC),
     )
@@ -225,3 +316,41 @@ def get_unpublished_outbox_events(session: Session, limit: int = 100) -> list[Ou
 
 def mark_outbox_event_published(session: Session, event: OutboxEventRow) -> None:
     event.published_at = datetime.now(UTC)
+    event.publish_attempts += 1
+    event.last_publish_error = None
+
+
+def mark_outbox_event_publish_failed(session: Session, event: OutboxEventRow, error: str) -> None:
+    """Records a failed publish attempt without touching `published_at` --
+    the event stays eligible for `get_unpublished_outbox_events` and will
+    be retried on the next relay pass. Purely diagnostic bookkeeping; see
+    OutboxEventRow's docstring.
+    """
+    event.publish_attempts += 1
+    event.last_publish_error = error[:2000]
+
+
+# --- consumed_events (consumer-side idempotency) ----------------------------
+
+
+def has_consumed_event(session: Session, *, consumer_name: str, event_id: uuid.UUID) -> bool:
+    stmt = select(ConsumedEventRow).where(
+        ConsumedEventRow.consumer_name == consumer_name,
+        ConsumedEventRow.event_id == event_id,
+    )
+    return session.execute(stmt).scalar_one_or_none() is not None
+
+
+def mark_event_consumed(session: Session, *, consumer_name: str, event_id: uuid.UUID) -> bool:
+    """Returns True if this call recorded the (consumer, event) pair for
+    the first time, False if it was already recorded (a duplicate
+    delivery this consumer has already processed).
+    """
+    stmt = (
+        pg_insert(ConsumedEventRow)
+        .values(consumer_name=consumer_name, event_id=event_id)
+        .on_conflict_do_nothing(index_elements=["consumer_name", "event_id"])
+        .returning(ConsumedEventRow.event_id)
+    )
+    inserted = session.execute(stmt).scalar_one_or_none()
+    return inserted is not None

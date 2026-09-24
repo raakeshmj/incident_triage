@@ -21,7 +21,8 @@ class OutboxEventEnvelope(BaseModel):
     schema_version: int = 1
     aggregate_type: str
     aggregate_id: uuid.UUID
+    occurred_at: datetime
     correlation_id: uuid.UUID | None = None
     causation_id: uuid.UUID | None = None
+    producer: str
     payload: dict
-    occurred_at: datetime

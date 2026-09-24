@@ -52,14 +52,18 @@ message ID.
   "schema_version": 1,
   "aggregate_type": "Incident",
   "aggregate_id": "uuid",
-  "sequence": 10482,
   "occurred_at": "2026-09-24T10:15:00Z",
-  "produced_by": "incident-core",
   "correlation_id": "uuid (= incident_id, for tracing)",
   "causation_id": "uuid (event_id or command_id that caused this)",
+  "producer": "incident-core",
   "payload": { "...": "event-type-specific fields" }
 }
 ```
+
+(`sequence` lives on the outbox row, not the envelope itself — it's an
+artifact of Postgres ordering, not something a consumer needs; the field
+was renamed from an earlier `produced_by` to `producer` for brevity when
+implemented — see `packages/events/envelope.py`.)
 
 ## Commands vs. domain events — naming
 
@@ -83,8 +87,8 @@ domain event owned by `incident-core`).
 | Event | Emitted by | Payload highlights |
 |---|---|---|
 | `AlertReceived` | **incident-core** (in the same transaction that persists the `Alert` and runs correlation) | alert id, fingerprint, source |
-| `AlertLinked` | incident-core | alert id, incident id |
-| `IncidentCreated` | incident-core | incident id, correlation key, initial severity |
+| `AlertCorrelated` | incident-core | alert id, incident id, matched signals, score (Phase 2 — see ADR-0015; renamed from the Phase 1 placeholder `AlertLinked` now that the correlation decision is explainable and worth carrying in the event itself) |
+| `IncidentCreated` | incident-core | incident id, correlation key, initial severity, best candidate score + matched signals considered (Phase 2 addition — explains *why* no correlation happened, not just that it didn't) |
 | `IncidentStatusChanged` | incident-core | from, to, reason |
 | `IncidentSeverityChanged` | incident-core | old, new |
 | `InvestigationStarted` / `InvestigationCompleted` / `InvestigationFailed` | incident-core | investigation id, attempt number |
@@ -100,13 +104,45 @@ domain event owned by `incident-core`).
 
 - **Per-aggregate (per `incident_id`) ordering is guaranteed.** The outbox
   `sequence` is global and monotonic; the relay publishes in sequence
-  order; the Redis Stream consumer group is sharded by `incident_id` (via a
-  consistent hash on the stream key or a per-incident stream — see
-  ADR-0003 for the chosen scheme) so a single incident's events are never
-  processed out of order by a given consumer.
+  order. As of Phase 2 (ADR-0014), the Redis side is a fixed number of
+  streams (`stream:events:0` .. `stream:events:{N-1}`, `packages/events/streams.py`),
+  and every event is sharded by a consistent hash of `correlation_id`
+  (which we always set to the owning incident's id) — so a single
+  incident's events always land on the same shard stream and are read in
+  emission order by whichever consumer owns that shard.
 - **Cross-aggregate (global) ordering is explicitly not guaranteed** and
   nothing in the design needs it. Two different incidents' events may be
-  processed in any relative order.
+  processed in any relative order, including across different shards.
+
+## Delivery semantics (Phase 2, ADR-0014)
+
+Stated plainly because it's easy to accidentally assume otherwise:
+**both hops — the outbox relay (Postgres → Redis) and every consumer
+(Redis → handler) — are at-least-once. Neither hop, nor the combination,
+is exactly-once, anywhere in this design.**
+
+- The relay retries a failed publish a bounded number of times within one
+  pass (`outbox_max_publish_attempts`, linear backoff), then leaves the
+  event unpublished for the next pass — unbounded retries *across* passes,
+  since there's no safe "give up" state for an internally-generated event
+  that must eventually reach the stream. See `apps/worker/main.py`'s
+  module docstring for the three crash points and what happens at each.
+- A consumer only ACKs a message after its handler succeeds *and*
+  `mark_processed` has durably recorded it (a database write, not a Redis
+  one — see `consumed_events` in `06-database-design.md`). A crash between
+  those two things causes Redis to redeliver the message once it's been
+  idle past `claim_min_idle_ms`.
+- Poison messages (delivery count past `consumer_max_deliveries`) are
+  moved to `stream:events:dlq` with the original `event_id` preserved in
+  the payload, and ACKed off the source stream so they stop being
+  redelivered there.
+- **Why exactly-once isn't attempted**: it would require a distributed
+  transaction spanning Postgres and Redis (for the relay) and Redis and
+  Postgres again (for the consumer), which neither system provides and
+  which this design deliberately does not try to fake. Correctness instead
+  comes from every consumer being idempotent by construction (checked
+  against a database ledger keyed by the event's own `event_id`, never
+  Redis's transport-specific message id) — see "Idempotency" below.
 
 ## Idempotency
 
@@ -134,10 +170,15 @@ domain event owned by `incident-core`).
   | `InvestigationCompletedCommand` / `InvestigationFailedCommand` | `investigation_id` |
   | `ApprovalDecisionCommand` | `approval_id` |
   | `ExecutionCompletedCommand` / `ExecutionFailedCommand` | `execution_id` (attempt-scoped via `executions.idempotency_key`, see `06-database-design.md`) |
-- **Bus consumers** (notification-service, eval-harness recorder) keep a
-  `(consumer_name, event_id)` dedup table (or rely on Redis consumer-group
-  `XACK` plus a short-lived dedupe cache) so at-least-once delivery cannot
-  double-notify or double-record.
+- **Bus consumers** keep a `(consumer_name, event_id)` dedup table so
+  at-least-once delivery cannot double-process. Implemented in Phase 2 as
+  `consumed_events` (`06-database-design.md`), checked via
+  `RedisStreamConsumer`'s injected `is_duplicate`/`mark_processed`
+  collaborators (`packages/events/consumer.py`) — not an in-memory cache,
+  which would not survive a consumer restart, and not reliance on Redis
+  `XACK` alone, which only prevents double-delivery *within* a consumer
+  group's own bookkeeping, not across a relay-side duplicate publish or a
+  consumer restart against an already-processed message. See ADR-0014.
 - **Executions** are the highest-stakes idempotency case: `executions.idempotency_key`
   is a unique constraint on `(remediation_proposal_id, attempt_number)`,
   and `remediation-executor` is required to accept an idempotency key as

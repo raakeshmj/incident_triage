@@ -9,22 +9,25 @@ import redis as redis_lib
 
 from packages.events.envelope import OutboxEventEnvelope
 from packages.events.publisher import RedisStreamEventPublisher
+from packages.events.streams import stream_name_for_shard
 
 
 def test_redis_stream_publisher_xadds_event():
-    client = redis_lib.from_url(os.environ["REDIS_URL"])
+    client = redis_lib.from_url(os.environ["REDIS_URL"], decode_responses=True)
     try:
         client.ping()
     except redis_lib.exceptions.ConnectionError as exc:
         pytest.skip(f"Redis not reachable ({exc}); run `make infra-up` first")
 
-    stream_key = f"test:stream:{uuid.uuid4()}"
-    publisher = RedisStreamEventPublisher(client, stream_key)
+    stream_prefix = f"test:stream:{uuid.uuid4()}"
+    publisher = RedisStreamEventPublisher(client, stream_prefix=stream_prefix, shard_count=1)
+    stream_key = stream_name_for_shard(0, prefix=stream_prefix)
     envelope = OutboxEventEnvelope(
         event_id=uuid.uuid4(),
         event_type="Test",
         aggregate_type="Alert",
         aggregate_id=uuid.uuid4(),
+        producer="test",
         payload={"a": 1},
         occurred_at=datetime.datetime.now(datetime.UTC),
     )

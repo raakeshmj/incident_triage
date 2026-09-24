@@ -77,6 +77,7 @@ class OutboxEventRow(Base):
     aggregate_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     correlation_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     causation_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    producer: Mapped[str] = mapped_column(String, nullable=False, default="incident-core")
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
     occurred_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -84,6 +85,12 @@ class OutboxEventRow(Base):
     published_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Phase 2: relay retry bookkeeping -- see docs/architecture/05-event-model.md,
+    # "Delivery semantics" and ADR-0014. Purely observational/diagnostic:
+    # never used to decide correctness, only to explain "why hasn't this
+    # published yet" without grepping logs.
+    publish_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_publish_error: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class ProcessedCommandRow(Base):
@@ -93,6 +100,30 @@ class ProcessedCommandRow(Base):
     command_type: Mapped[str] = mapped_column(String, primary_key=True)
     idempotency_key: Mapped[str] = mapped_column(String, primary_key=True)
     result: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    processed_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class ConsumedEventRow(Base):
+    """Consumer-side idempotency ledger (Phase 2).
+
+    Redis Streams consumer groups already prevent the *same consumer
+    group* from handing one message to two consumers concurrently, but
+    they do not prevent redelivery after a crash-before-ack, and they
+    provide nothing at all if a consumer is ever restarted against a
+    stream position it has already fully processed. This table is the
+    actual duplicate-processing guard: "Do not rely only on Redis to
+    prevent duplicate processing." One row per (consumer, event), keyed by
+    the event's own `event_id` -- not the Redis stream message id, which
+    is transport-specific and meaningless across a redelivery.
+    """
+
+    __tablename__ = "consumed_events"
+    __table_args__ = {"schema": SCHEMA}
+
+    consumer_name: Mapped[str] = mapped_column(String, primary_key=True)
+    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     processed_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

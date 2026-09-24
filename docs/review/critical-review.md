@@ -39,6 +39,27 @@ document's first pass missed, since fixed:
   (ADR-0013), not just a recommendation — see the updates within each
   section below.
 
+## Phase 2 implementation note
+
+Phase 2 (the event transport and correlation engine) resolved item 3
+below (event ordering / stream sharding, ADR-0014) and surfaced one new
+race this document had not anticipated, caught by
+`tests/integration/test_late_arriving_alert.py` during implementation
+rather than by review: introducing multi-candidate correlation scoring
+broke the implicit assumption behind Phase 1's race protection — that "is
+there an existing incident for this signal" could always be answered by
+one deterministic key lookup. Once the answer requires reading and scoring
+several candidate rows, (a) two concurrent alerts with no existing
+candidate can independently decide to create separate incidents (a write-
+skew case a unique index alone cannot prevent), and (b) a plain
+fingerprint-based key made a *late-arriving* alert collide with a *stale*
+incident sharing that fingerprint, silently attaching it there instead of
+correctly creating a new one. Both are fixed in ADR-0015 (a Postgres
+advisory lock serializing the decision per service+environment, and a
+time-bucketed correlation key for new incidents) — recorded here because
+it's exactly the class of gap this document exists to catch, and this
+time implementation caught it instead.
+
 ## 1. State ownership
 
 **Risk**: multiple writers to the same aggregate cause lost updates or
@@ -95,17 +116,19 @@ premature failure calls).
 global `sequence` plus per-incident-sharded consumer groups (ADR-0003);
 cross-incident ordering is explicitly not promised or needed.
 
-**Open risk**: the "per-incident-sharded consumer group" mechanism is
-described at the level of intent, not mechanism, in `05-event-model.md`.
-Redis Streams doesn't have native partitioning like Kafka; achieving
-per-key ordering with multiple consumer instances typically means either
-(a) one stream per incident (unbounded stream count, needs a reaping
-strategy for closed incidents) or (b) a fixed number of streams with
-consistent hashing on `incident_id` (bounded, but a consumer failure
-affects all incidents hashed to that shard until recovery). This is a real
-design decision still to be made at implementation time, not just a detail
-— flagging it explicitly so it isn't glossed over. Recommend (b) with a
-modest, fixed shard count as the starting point.
+**Resolved in Phase 2** (ADR-0014): option (b) from this section's original
+recommendation was implemented — a fixed number of streams
+(`DEFAULT_SHARD_COUNT = 8`, `packages/events/streams.py`), sharded by a
+consistent hash of `correlation_id` (the owning incident's id). The
+accepted tradeoff named here at the time — "a consumer failure affects all
+incidents hashed to that shard until recovery" — stands as designed: a
+crashed consumer's pending entries on its shard are picked up by
+`XAUTOCLAIM` once idle past `claim_min_idle_ms`, so recovery is bounded,
+not permanent. Not yet exercised: an actual multi-process consumer
+deployment (Phase 2 runs one process reading all shards); the sharding
+still holds if that changes, but the "consumer failure" scenario above is
+currently theoretical rather than something the test suite reproduces
+(no chaos test kills a specific shard's consumer mid-batch).
 
 ## 4. Retries and idempotency
 
@@ -251,9 +274,9 @@ Checked against the component table in `02-component-boundaries.md`:
 1. ~~Enforce single-writer ownership with database-level permissions, not
    only code discipline.~~ **Addressed** — ADR-0013 (per-service Postgres
    roles scoped to logical schemas within the shared v1 instance).
-2. Decide the concrete Redis Streams sharding mechanism for per-incident
-   ordering (fixed shard count + consistent hash on `incident_id`
-   recommended) before building the outbox relay.
+2. ~~Decide the concrete Redis Streams sharding mechanism for per-incident
+   ordering.~~ **Addressed** — ADR-0014 (fixed shard count, consistent hash
+   on `correlation_id`).
 3. Add an explicit `incident-core` watchdog for stuck `INVESTIGATING`
    states (agent crash / never responds).
 4. Enforce server-side service/environment scoping on every

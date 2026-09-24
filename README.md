@@ -2,17 +2,23 @@
 
 Autonomous Production Incident Triage & Response platform.
 
-**Status: Phase 1 implemented.** A working vertical slice exists:
+**Status: Phase 1 + Phase 2 implemented.** A working vertical slice, now
+with a production-shaped event transport and a real correlation engine:
 
 ```
 external alert -> alert-ingestion -> AlertReceivedCommand -> incident-core
-    -> PostgreSQL -> AlertReceived domain event (transactional outbox)
+    -> [correlation engine decides: new incident, or join an existing one]
+    -> PostgreSQL -> AlertReceived / IncidentCreated / AlertCorrelated
+    -> transactional outbox -> sharded Redis Streams -> durable consumer
 ```
 
-See [`docs/`](docs/) for the full architecture and [`docs/implementation-order.md`](docs/implementation-order.md)
-for what comes after Phase 1. Nothing beyond Phase 1's scope is
-implemented yet: no Claude/LLM agent, no evidence service, no policy
-engine, no remediation, no Kubernetes/Prometheus/Loki, no dashboard.
+See [`docs/`](docs/) for the full architecture,
+[`docs/implementation-order.md`](docs/implementation-order.md) for what
+this maps to and what's next, and ADR-0014/ADR-0015 for the two biggest
+Phase 2 decisions (event transport, correlation engine). Nothing beyond
+this scope is implemented yet: no Claude/LLM agent, no evidence service,
+no policy engine, no remediation, no Kubernetes/Prometheus/Loki, no
+dashboard.
 
 ## Repository layout
 
@@ -25,13 +31,14 @@ apps/
 
 packages/
   domain/       pure domain models -- Alert, Incident, commands, events,
-                correlation, idempotency (no FastAPI/DB imports)
-  events/       outbox envelope shape + publisher abstraction
+                the correlation engine, idempotency (no FastAPI/DB imports)
+  events/       outbox envelope, sharded stream topology, publisher, and
+                the reusable RedisStreamConsumer abstraction
   incident/     incident-core: the sole writer of Alert/Incident state
                 (DB models, repository, service, Alembic migrations)
-  telemetry/    structured logging, request context, tracing stub
+  telemetry/    structured logging, request context, tracing + metrics stubs
   agents/       reserved (Phase 5 -- investigation agent)
-  tools/        reserved (Phase 2/5 -- evidence-service tool proxies)
+  tools/        reserved (Phase 5 -- evidence-service tool proxies)
   policy/       reserved (Phase 3 -- policy engine)
   evaluation/   reserved (Phase 5+ -- offline eval harness)
 
@@ -87,20 +94,22 @@ curl -s -X POST localhost:8000/api/v1/alerts \
 curl -s localhost:8000/api/v1/incidents/<id>
 ```
 
-Run the outbox relay (publishes persisted events to a Redis Stream) in a
-third terminal:
+Run the outbox relay (publishes persisted events to sharded Redis Streams)
+and the durable event consumer (records correlation/incident metrics) in
+two more terminals:
 
 ```bash
-make run-worker
+make run-worker      # outbox relay: Postgres -> Redis
+make run-consumer    # event consumer: Redis -> metrics, with DLQ + dedup
 ```
 
 ## Tests
 
 ```bash
 make test              # everything
-make test-unit         # packages/domain -- no infrastructure needed
-make test-integration  # packages/incident against real Postgres/Redis
-make test-e2e          # the FastAPI app in-process against real Postgres
+make test-unit         # packages/domain, packages/events -- no infrastructure needed
+make test-integration  # packages/incident + packages/events against real Postgres/Redis
+make test-e2e          # the FastAPI app in-process against real Postgres/Redis
 ```
 
 Integration and e2e tests auto-skip with a clear message if

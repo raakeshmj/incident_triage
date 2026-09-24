@@ -11,3 +11,11 @@ Structured logging and a clean OpenTelemetry integration point.
   requirement: prepare the integration point, don't wire OpenTelemetry
   itself yet. Swapping the body for a real tracer later doesn't require
   changing any call site.
+- `metrics.py` -- `get_metrics()` returns a `Metrics` (`increment`/
+  `observe`/`gauge`), currently `LoggingMetrics` (renders each call as a
+  structured `metric.*` log line under stable field names). Same
+  "prepared integration point" pattern as `tracing.py`: a
+  `prometheus_client`-backed implementation is a new class behind the same
+  protocol, not a call-site change. Used throughout Phase 2's outbox relay
+  and event consumer for publish latency/retries, processing duration/
+  failures, dead-letter counts, and correlation decisions/scores.

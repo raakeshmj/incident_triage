@@ -11,27 +11,38 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
 from packages.domain.commands import COMMAND_TYPE_ALERT_RECEIVED, AlertReceivedCommand
-from packages.domain.correlation import compute_correlation_key, compute_fingerprint
+from packages.domain.correlation import compute_fingerprint
+from packages.domain.correlation_engine import (
+    DEFAULT_CANDIDATE_LOOKBACK_SECONDS,
+    CorrelationEngine,
+    NewAlertContext,
+    default_correlation_engine,
+)
 from packages.domain.events import (
     AGGREGATE_TYPE_ALERT,
     AGGREGATE_TYPE_INCIDENT,
-    EVENT_TYPE_ALERT_LINKED,
+    EVENT_TYPE_ALERT_CORRELATED,
     EVENT_TYPE_ALERT_RECEIVED,
     EVENT_TYPE_INCIDENT_CREATED,
-    AlertLinkedPayload,
+    PRODUCER_INCIDENT_CORE,
+    AlertCorrelatedPayload,
     AlertReceivedPayload,
     IncidentCreatedPayload,
 )
 from packages.domain.results import AlertReceivedResult
 from packages.domain.views import AlertView, IncidentView
 from packages.incident import repository
+from packages.incident.db.models import IncidentRow
 from packages.telemetry.logging import get_logger
+from packages.telemetry.metrics import get_metrics
 
 log = get_logger(__name__)
+metrics = get_metrics()
 
 _MAX_IDEMPOTENCY_RACE_RETRIES = 3
 
@@ -41,8 +52,22 @@ class _LostIdempotencyRace(Exception):
 
 
 class IncidentCoreService:
-    def __init__(self, session_factory: Callable[[], Session]) -> None:
+    def __init__(
+        self,
+        session_factory: Callable[[], Session],
+        correlation_engine: CorrelationEngine | None = None,
+        candidate_lookback_seconds: int = DEFAULT_CANDIDATE_LOOKBACK_SECONDS,
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    ) -> None:
         self._session_factory = session_factory
+        self._correlation_engine = correlation_engine or default_correlation_engine()
+        self._candidate_lookback_seconds = candidate_lookback_seconds
+        # Deliberately decoupled from `alerts.received_at` (DB-assigned at
+        # insert time): correlation timing is a decision made by
+        # incident-core, not a fact read back from storage, and tests need
+        # to control it precisely to exercise Case F (late-arriving alerts)
+        # without waiting in real time. In production this is just "now."
+        self._clock = clock
 
     # --- commands ------------------------------------------------------
 
@@ -59,7 +84,6 @@ class IncidentCoreService:
                 return AlertReceivedResult.model_validate(existing.result)
 
             fingerprint = compute_fingerprint(command.source, command.labels)
-            correlation_key = compute_correlation_key(fingerprint)
 
             for _attempt in range(_MAX_IDEMPOTENCY_RACE_RETRIES):
                 try:
@@ -67,7 +91,6 @@ class IncidentCoreService:
                         session,
                         command=command,
                         fingerprint=fingerprint,
-                        correlation_key=correlation_key,
                     )
                     session.commit()
                     return result
@@ -95,8 +118,16 @@ class IncidentCoreService:
         *,
         command: AlertReceivedCommand,
         fingerprint: str,
-        correlation_key: str,
     ) -> AlertReceivedResult:
+        # Serializes "read candidate incidents, decide, write" for this
+        # (service, environment) pair -- see repository.acquire_correlation_lock
+        # and ADR-0015. Must happen before we look at candidates, and before
+        # the alert insert below, so two concurrent alerts for the same
+        # service+environment are never mid-decision at the same time.
+        repository.acquire_correlation_lock(
+            session, service=command.service, environment=command.environment
+        )
+
         alert_row, alert_already_existed = repository.insert_alert_or_get_existing(
             session, command=command, fingerprint=fingerprint
         )
@@ -117,13 +148,64 @@ class IncidentCoreService:
             self._finalize(session, command, result)
             return result
 
-        incident_row, incident_created = repository.get_or_create_open_incident(
+        now = self._clock()
+        candidates = repository.find_open_incident_candidates(
             session,
-            correlation_key=correlation_key,
-            severity=command.severity,
             service=command.service,
             environment=command.environment,
+            now=now,
+            lookback_seconds=self._candidate_lookback_seconds,
         )
+        decision = self._correlation_engine.decide(
+            NewAlertContext(
+                source=command.source.value,
+                fingerprint=fingerprint,
+                labels=command.labels,
+                service=command.service,
+                environment=command.environment,
+                received_at=now,
+            ),
+            candidates,
+        )
+        metrics.increment(
+            "correlation.decision", decision=decision.decision, service=command.service
+        )
+        metrics.observe(
+            "correlation.score", decision.score, decision=decision.decision, service=command.service
+        )
+
+        if decision.decision == "CORRELATE":
+            assert decision.matched_incident_id is not None
+            incident_row = session.get(IncidentRow, decision.matched_incident_id)
+            assert incident_row is not None
+            incident_created = False
+            repository.touch_incident_updated_at(session, incident_row)
+        else:
+            # Disambiguate the new incident's key from any *stale* open
+            # incident that happens to share the same fingerprint but fell
+            # outside the candidate lookback window (that's precisely why
+            # the engine said NEW_INCIDENT instead of CORRELATE -- see
+            # Case F in docs/architecture/04-incident-state-machine.md's
+            # Phase 2 addendum). Without this, the partial unique index on
+            # `correlation_key` would make this INSERT collide with the old
+            # incident and we'd silently attach to it via the "lost the
+            # race" fallback path -- which is correct behavior for a true
+            # concurrent race (same bucket) and wrong for a stale match
+            # (different bucket). Bucketing by the same window the
+            # candidate query itself uses makes both cases fall out
+            # correctly: two genuinely concurrent decisions for the same
+            # signature share a bucket (and so still collide, as intended,
+            # serialized by ON CONFLICT); a stale match does not.
+            bucket = int(now.timestamp() // self._candidate_lookback_seconds)
+            new_incident_correlation_key = f"{decision.correlation_key}:{bucket}"
+            incident_row, incident_created = repository.get_or_create_open_incident(
+                session,
+                correlation_key=new_incident_correlation_key,
+                severity=command.severity,
+                service=command.service,
+                environment=command.environment,
+            )
+
         repository.link_alert_to_incident(session, alert_row.id, incident_row.id)
 
         repository.insert_outbox_event(
@@ -132,6 +214,7 @@ class IncidentCoreService:
             aggregate_type=AGGREGATE_TYPE_ALERT,
             aggregate_id=alert_row.id,
             correlation_id=incident_row.id,
+            producer=PRODUCER_INCIDENT_CORE,
             payload=AlertReceivedPayload(
                 alert_id=alert_row.id,
                 fingerprint=fingerprint,
@@ -147,23 +230,30 @@ class IncidentCoreService:
                 aggregate_type=AGGREGATE_TYPE_INCIDENT,
                 aggregate_id=incident_row.id,
                 correlation_id=incident_row.id,
+                producer=PRODUCER_INCIDENT_CORE,
                 payload=IncidentCreatedPayload(
                     incident_id=incident_row.id,
-                    correlation_key=correlation_key,
+                    correlation_key=incident_row.correlation_key,
                     initial_severity=command.severity,
                     service=command.service,
                     environment=command.environment,
+                    best_candidate_score=decision.score,
+                    matched_signals=decision.matched_signals,
                 ).model_dump(mode="json"),
             )
         else:
             repository.insert_outbox_event(
                 session,
-                event_type=EVENT_TYPE_ALERT_LINKED,
+                event_type=EVENT_TYPE_ALERT_CORRELATED,
                 aggregate_type=AGGREGATE_TYPE_INCIDENT,
                 aggregate_id=incident_row.id,
                 correlation_id=incident_row.id,
-                payload=AlertLinkedPayload(
-                    alert_id=alert_row.id, incident_id=incident_row.id
+                producer=PRODUCER_INCIDENT_CORE,
+                payload=AlertCorrelatedPayload(
+                    alert_id=alert_row.id,
+                    incident_id=incident_row.id,
+                    score=decision.score,
+                    matched_signals=decision.matched_signals,
                 ).model_dump(mode="json"),
             )
 
@@ -179,6 +269,9 @@ class IncidentCoreService:
             alert_id=str(alert_row.id),
             incident_id=str(incident_row.id),
             incident_created=incident_created,
+            correlation_decision=decision.decision,
+            correlation_score=decision.score,
+            matched_signals=list(decision.matched_signals),
             idempotency_key=command.idempotency_key,
         )
         return result

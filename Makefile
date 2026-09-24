@@ -49,5 +49,8 @@ run-api:
 run-worker:
 	python -m apps.worker.main
 
+run-consumer:
+	python -m apps.worker.consumer_main
+
 send-alert:
 	python simulator/send_alert.py

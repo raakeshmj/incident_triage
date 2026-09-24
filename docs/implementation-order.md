@@ -4,6 +4,21 @@ Each phase should be shippable and independently testable before starting
 the next. Phases 1–4 contain zero LLM involvement — the goal is a fully
 correct, deterministic, race-free core before any autonomy is layered on.
 
+**Implementation status note**: the actual build sessions' "Phase 1" and
+"Phase 2" map onto this document as follows — Phase 1 (build) delivered
+this document's Phase 1 in full. Phase 2 (build) delivered this document's
+Phase 1 event-transport items in their production-shaped form (a real
+outbox relay with retries/backoff, sharded Redis Streams, consumer groups,
+a dead-letter stream, consumer-side idempotency — see ADR-0014) *and*
+pulled the multi-signal correlation engine forward from what Phase 1
+originally scoped as a minimal fingerprint rule (see ADR-0015) — but did
+**not** touch this document's Phase 2 (evidence-service). So "build Phase
+2" is a deepening of this document's Phase 1, not this document's Phase 2;
+evidence-service, policy-engine, and everything from here on remain
+unstarted. Documented here rather than renumbering the phases below, which
+were written before either build session and still describe the right next
+steps once evidence-service's turn comes.
+
 ## Phase 0 — Foundations (no services yet)
 
 - `libs/schemas`: Pydantic models for the domain entities, event envelope,

@@ -41,6 +41,7 @@ def _clean_tables(engine: Engine) -> Iterator[None]:
                     "TRUNCATE TABLE "
                     "incident_core.outbox_events, "
                     "incident_core.processed_commands, "
+                    "incident_core.consumed_events, "
                     "incident_core.alerts, "
                     "incident_core.incidents "
                     "RESTART IDENTITY CASCADE"

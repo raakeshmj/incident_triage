@@ -68,12 +68,27 @@ than an investigation that couldn't reach a conclusion at all.)
 
 ## Alerts arriving mid-lifecycle
 
-A new alert that correlates to an already-open incident (`correlation_key`
-match) is linked via `AlertLinked` — it does **not** restart the state
-machine. If it raises the incident's effective severity, `incident-core`
-emits `IncidentSeverityChanged`, which `notification-service` reacts to,
-but the state itself is untouched. This avoids an alert storm causing the
-same incident to bounce back to `TRIAGING` repeatedly.
+A new alert that the correlation engine (ADR-0015) matches to an
+already-open incident is linked via `AlertCorrelated` — it does **not**
+restart the state machine. If it raises the incident's effective severity,
+`incident-core` emits `IncidentSeverityChanged`, which `notification-service`
+reacts to, but the state itself is untouched. This avoids an alert storm
+causing the same incident to bounce back to `TRIAGING` repeatedly.
+
+### Phase 2 addendum: correlation behavior cases
+
+The multi-signal correlation engine (ADR-0015) is what decides "linked" vs.
+"new incident" above. Its behavior across the cases that matter,
+concretely:
+
+| Case | Behavior |
+|---|---|
+| **A** — first alert for a signature | No open candidate incidents found (or none score above threshold) → `TRIAGING`, `IncidentCreated`. |
+| **B** — a related alert arrives shortly afterward | Scores above threshold against the open incident's most recent alert (service/environment/temporal/type signals) → `AlertCorrelated`, no state change, no new incident. |
+| **C** — an unrelated alert arrives | Scores below threshold against every open candidate (or there are none for that service+environment) → new incident, exactly as Case A. |
+| **D** — the same external alert retries | Caught before correlation even runs: command-level idempotency (same `idempotency_key`) or the `(source, external_id)` database dedup — see `06-database-design.md`. The correlation engine is never invoked a second time for a genuine retry. |
+| **E** — multiple related alerts arrive concurrently | A Postgres advisory lock serializes the "read candidates → decide → write" sequence per `(service, environment)` (ADR-0015) — the second alert to acquire the lock always sees the first's already-committed incident, so they converge on one incident rather than racing to create two. |
+| **F** — a late-arriving alert | The candidate query bounds itself to incidents whose most recent alert is within the configured lookback window (default 15 minutes) of "now" — an incident with no activity in that window is never offered to the engine as a candidate at all, regardless of how well its signature would otherwise match. The alert gets a new incident. |
 
 ## Concurrency control
 

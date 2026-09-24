@@ -7,8 +7,10 @@ The sole writer of `Alert` and `Incident` state (incident-core). See
 
 ## Layout
 
-- `db/models.py` -- SQLAlchemy ORM models for the `incident_core` schema
-  (Phase 1: `incidents`, `alerts`, `outbox_events`, `processed_commands`).
+- `db/models.py` -- SQLAlchemy ORM models for the `incident_core` schema:
+  `incidents`, `alerts`, `outbox_events` (with Phase 2's `producer`,
+  `publish_attempts`, `last_publish_error` columns), `processed_commands`,
+  `consumed_events` (Phase 2 consumer-side idempotency ledger).
 - `db/base.py` -- engine/session construction, using
   `INCIDENT_CORE_DATABASE_URL` (the `incident_core_role` connection, never
   the superuser -- see ADR-0013).
@@ -16,12 +18,20 @@ The sole writer of `Alert` and `Incident` state (incident-core). See
   documented race (new incident vs. concurrent alert, duplicate alert,
   duplicate command) uses Postgres `ON CONFLICT DO NOTHING` against the
   exact unique indexes from the migration, matching
-  `docs/review/critical-review.md`'s documented mitigations.
+  `docs/review/critical-review.md`'s documented mitigations. Phase 2 adds
+  `acquire_correlation_lock` (an advisory lock serializing correlation
+  decisions per service+environment) and `find_open_incident_candidates`
+  (the correlation engine's candidate query) -- see ADR-0015.
 - `service.py` -- `IncidentCoreService`, the only public entry point.
-  `handle_alert_received` is one atomic transaction: persist Alert,
-  correlate, persist Incident, write the outbox event(s), record the
-  idempotency ledger entry -- all or nothing.
+  `handle_alert_received` is one atomic transaction: acquire the
+  correlation lock, persist Alert, run the correlation engine
+  (`packages/domain/correlation_engine.py`) against open candidates,
+  persist/link the Incident, write the outbox event(s)
+  (`AlertReceived` + `IncidentCreated` or `AlertCorrelated`), record the
+  idempotency ledger entry -- all or nothing. Takes an injectable `clock`
+  for deterministic testing of time-windowed correlation decisions.
 - `migrations/` -- Alembic, rooted at the repo's `alembic.ini`.
+  `0001_initial_schema` (Phase 1), `0002_events_correlation` (Phase 2).
 
 ## Why other services don't import `db/*` directly
 

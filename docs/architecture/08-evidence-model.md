@@ -1,0 +1,101 @@
+# 08 — Evidence Model
+
+## The problem this exists to solve
+
+An LLM can state anything fluently, including things that are false or
+unverifiable. If "evidence" in an RCA is just the model's paraphrase of
+what it thinks a dashboard showed, the RCA is unauditable and untrustable
+the moment the model is wrong — and there is no way to tell from the
+report alone whether it's wrong. The fix is architectural, not a prompting
+technique: **the model is structurally incapable of citing evidence that
+isn't already a durable, independently-fetched record.**
+
+## How that's enforced
+
+1. `investigation-agent` never queries Prometheus/Loki/Tempo/Git/k8s/history
+   directly. Every tool call goes to `evidence-service`.
+2. `evidence-service`, on every call:
+   - Executes the real query against the real backing system.
+   - Persists the request (query spec) and the raw response **verbatim**
+     as an immutable `evidence` record, computing `content_hash =
+     sha256(raw_response)`, **before** returning anything to the caller.
+   - Returns the caller a summarized/truncated view **plus** the
+     `evidence_id` and `content_hash` — the model is expected to cite the
+     ID, and the full raw record remains available for a human (or the
+     eval harness) to inspect later.
+3. `incident-core` rejects (see `07-agent-tool-architecture.md`) any
+   hypothesis or proposal citing an `evidence_id` that doesn't exist or
+   doesn't belong to the current investigation. There is no code path by
+   which a citation can be accepted without a backing record.
+4. Evidence is **immutable and content-addressed** once written — no
+   service ever updates an evidence row. If the same query is run again
+   (e.g. a retry), it produces a new evidence record with a new
+   `collected_at`; the old one is untouched. This makes evidence safely
+   replayable and makes staleness explicit rather than silently
+   overwritten.
+
+## Evidence types
+
+| Type | Source | Query shape | Notes |
+|---|---|---|---|
+| `metric` | Prometheus | Allow-listed PromQL templates + parameters (not arbitrary PromQL) | Bounds the blast radius of a bad query; templates cover the alert's own metric plus standard RED/USE queries for the service |
+| `log` | Loki | LogQL with mandatory service/time scoping | Truncated to N lines / M KB in the raw record too — a "raw dump" is still bounded |
+| `trace` | Tracing backend (Tempo) | Trace ID or service+time window | Summarized span tree stored, not every attribute |
+| `deploy` | CI/CD or deployment system API | Service + time range | Who, when, what changed (version/commit refs) |
+| `git_diff` | Git provider (GitHub) | Commit range or PR reference | Diff + commit metadata, read-only token scoped to specific repos |
+| `config_change` | Config store / feature-flag system | Service + time range | Before/after values |
+| `historical_incident` | incident-core read API | Free-text/service query over past `rca_reports` | Returns past incidents' *evidence-backed* summaries, not raw historical evidence |
+
+## Evidence record shape
+
+```json
+{
+  "id": "uuid",
+  "investigation_id": "uuid",
+  "type": "metric",
+  "source_system": "prometheus",
+  "query_spec": { "template": "error_rate_by_service", "params": {"service": "checkout", "range": "30m"} },
+  "raw_response_ref": "s3://.../<hash>.json  (or inline for small payloads)",
+  "content_hash": "sha256:...",
+  "summary": "error_rate rose from 0.2% to 8.4% at 10:03Z",
+  "collected_at": "2026-09-24T10:14:02Z",
+  "expires_at": "2026-10-24T10:14:02Z"
+}
+```
+
+`incident-core.evidence_refs` stores everything except `raw_response_ref`'s
+target payload and the full raw blob — it holds the metadata and
+`content_hash` needed to validate citations and render the RCA, keeping
+`incident-core`'s database free of large blobs. Large raw payloads live in
+object storage or a dedicated evidence database owned by `evidence-service`
+(see `06-database-design.md`).
+
+## Confidence, staleness, and contradiction
+
+- `confidence` on a `Hypothesis` is model-reported and **advisory only** —
+  it is displayed to humans and used for ranking, but it never drives
+  policy decisions (`09-remediation-policy-boundaries.md` — policy only
+  ever looks at the deterministic blast-radius tier of the *proposed
+  action*, never at how confident the model claims to be).
+- Evidence has a `collected_at` timestamp; `evidence-service` exposes an
+  `expires_at` for time-sensitive types (metrics/logs) — an RCA reviewer or
+  the verification step can tell whether a citation is fresh relative to
+  the incident timeline.
+- `hypothesis_evidence_links.relation ∈ {supports, refutes}` — the model is
+  explicitly asked to search for *disconfirming* evidence for its top
+  hypothesis, not just confirming evidence, and both are stored. An RCA
+  report that shows zero refuting evidence ever considered is itself a
+  signal (surfaced in the eval harness's groundedness scoring, see
+  `11-evaluation-architecture.md`).
+
+## RCA report rendering
+
+`rca_reports.summary` is generated by deterministic rendering code that
+walks `root_cause_hypothesis_id` → its `hypothesis_evidence_links` → the
+underlying `evidence` records, and produces a document where every claim
+is a hyperlink/reference to a stored evidence ID. The model does not write
+the final RCA prose freeform; it selects and ranks structured hypotheses,
+and rendering is a template, not a generation step. (A future iteration
+may use Claude to improve the prose *of an already-fully-cited* report,
+strictly as a text-polish pass with no ability to add new claims — out of
+scope for v1.)

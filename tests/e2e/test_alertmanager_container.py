@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-import threading
 import time
 import uuid
 from collections.abc import Iterator
@@ -28,14 +27,12 @@ from pathlib import Path
 
 import httpx
 import pytest
-import uvicorn
 from sqlalchemy import select
 
 from packages.incident.db.models import AlertRow
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ALERTMANAGER_CONFIG = REPO_ROOT / "infrastructure" / "alertmanager" / "alertmanager.yml"
-API_PORT = 8000
 ALERTMANAGER_PORT = 9093
 CONTAINER_NAME = "ii-e2e-alertmanager-test"
 
@@ -48,32 +45,6 @@ def _docker_available() -> bool:
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
         return False
     return True
-
-
-@pytest.fixture(scope="module")
-def api_server(engine) -> Iterator[None]:
-    """A real uvicorn server for the real app, on the port alertmanager.yml targets."""
-    from apps.api.main import app
-
-    config = uvicorn.Config(app, host="0.0.0.0", port=API_PORT, log_level="warning")
-    server = uvicorn.Server(config)
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        try:
-            httpx.get(f"http://localhost:{API_PORT}/healthz", timeout=1.0)
-            break
-        except httpx.HTTPError:
-            time.sleep(0.2)
-    else:
-        pytest.fail("API server did not start within 10s")
-
-    yield
-
-    server.should_exit = True
-    thread.join(timeout=10)
 
 
 @pytest.fixture(scope="module")

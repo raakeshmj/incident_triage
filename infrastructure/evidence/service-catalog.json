@@ -1,0 +1,17 @@
+{
+  "_comment": "Evidence-service authorization scope (packages/evidence/scope.py). An incident on service S may gather evidence about S and its direct dependency neighbors (what S calls, and what calls S) -- nothing else. repo_paths bound what the Git adapter may read for S.",
+  "services": {
+    "checkout-service": {
+      "dependencies": ["payment-service"],
+      "repo_paths": ["simulator/services/checkout-service/", "simulator/services/common/"]
+    },
+    "payment-service": {
+      "dependencies": ["inventory-service"],
+      "repo_paths": ["simulator/services/payment-service/", "simulator/services/common/"]
+    },
+    "inventory-service": {
+      "dependencies": [],
+      "repo_paths": ["simulator/services/inventory-service/", "simulator/services/common/"]
+    }
+  }
+}

@@ -90,6 +90,31 @@ concretely:
 | **E** — multiple related alerts arrive concurrently | A Postgres advisory lock serializes the "read candidates → decide → write" sequence per `(service, environment)` (ADR-0015) — the second alert to acquire the lock always sees the first's already-committed incident, so they converge on one incident rather than racing to create two. |
 | **F** — a late-arriving alert | The candidate query bounds itself to incidents whose most recent alert is within the configured lookback window (default 15 minutes) of "now" — an incident with no activity in that window is never offered to the engine as a candidate at all, regardless of how well its signature would otherwise match. The alert gets a new incident. |
 
+## Alert resolution (Phase 4)
+
+Alert-source resolved notifications (Alertmanager `send_resolved`) are
+real inputs to the lifecycle, with deterministic semantics (ADR-0019):
+
+- An alert is one **firing episode** (Alertmanager: `fingerprint` +
+  `startsAt`). Its status flips `firing -> resolved` exactly once.
+- The only alert-driven transition is the table's own
+  `TRIAGING -> CANCELLED`, guarded by **no linked alert still firing**. One
+  resolved alert never ends an incident another linked alert is still
+  firing for.
+- Past `TRIAGING`, resolution is recorded (and emitted as `AlertResolved`)
+  but causes no transition: verification or a human ends those states.
+  `RESOLVED` remains "verification confirmed recovery, or a human resolved".
+- A duplicate resolution is a no-op; a resolution for an episode never seen
+  firing is recorded unlinked and opens nothing; a late firing notification
+  for an ended episode reopens nothing.
+- Resolution takes the same `(service, environment)` advisory lock as
+  correlation, and the transition is an optimistic `version` update, per
+  "Concurrency control" below.
+
+Because nothing yet moves an incident out of `TRIAGING` (no debounce
+scheduler before the investigation agent exists), every incident whose
+alerts all clear today ends `CANCELLED`.
+
 ## Concurrency control
 
 - Every transition reads `incidents.version`, and the `UPDATE` includes

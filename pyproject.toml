@@ -38,6 +38,7 @@ addopts = "-ra"
 markers = [
     "integration: requires local Postgres/Redis infrastructure (see Makefile infra-up)",
     "e2e: end-to-end tests requiring the full local stack",
+    "stack: needs the full Phase 3/4 stack (`make infra-up-full`): Prometheus, Loki, Tempo, simulated services",
 ]
 
 [tool.ruff]
@@ -51,7 +52,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["B008", "UP042"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["apps", "packages", "tests"]
+known-first-party = ["apps", "packages", "tests", "simulator"]
 
 [tool.mypy]
 python_version = "3.11"

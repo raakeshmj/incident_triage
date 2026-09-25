@@ -16,6 +16,7 @@ import httpx
 from opentelemetry import trace
 from opentelemetry.propagate import inject
 from opentelemetry.trace import Status, StatusCode
+
 from simulator.services.common.telemetry import ServiceTelemetry, get_logger
 
 log = get_logger("http_client")

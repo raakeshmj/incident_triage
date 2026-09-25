@@ -61,6 +61,10 @@ class AlertRow(Base):
     received_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    # Phase 4: set once, when the alert's firing episode ends.
+    resolved_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class OutboxEventRow(Base):
@@ -125,5 +129,32 @@ class ConsumedEventRow(Base):
     consumer_name: Mapped[str] = mapped_column(String, primary_key=True)
     event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     processed_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class EvidenceRefRow(Base):
+    """incident-core's reference to an evidence record (Phase 4).
+
+    Immutable: migration 0003 installs a trigger rejecting UPDATE/DELETE.
+    The payload itself lives in evidence-service's `evidence` schema, which
+    incident-core's role has no grant on -- this row holds exactly what's
+    needed to validate a citation (`id` exists, belongs to this incident,
+    `content_hash` matches). See docs/architecture/08-evidence-model.md.
+    """
+
+    __tablename__ = "evidence_refs"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    incident_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.incidents.id"), nullable=False
+    )
+    investigation_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    evidence_type: Mapped[str] = mapped_column(String, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String, nullable=False)
+    source_system: Mapped[str] = mapped_column(String, nullable=False)
+    collected_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    registered_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

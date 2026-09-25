@@ -1,0 +1,37 @@
+# Single-binary Grafana Tempo, local filesystem storage -- local dev only.
+# Receives traces from otel-collector over OTLP/gRPC and serves the query
+# API on :3200 (Grafana's Tempo datasource and the evidence-service's Tempo
+# adapter, packages/evidence/adapters/tempo.py, both read from it).
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+  log_level: warn
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+
+ingester:
+  # Cut blocks often so freshly-ingested traces become searchable quickly
+  # in a small local environment (recent traces are also served straight
+  # from the ingester, so this is about completed-block search, not
+  # trace-by-id lookup).
+  max_block_duration: 5m
+
+compactor:
+  compaction:
+    # Local-dev retention: a day is plenty for chaos experiments and keeps
+    # the volume small.
+    block_retention: 24h
+
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks

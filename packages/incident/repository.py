@@ -14,16 +14,22 @@ import hashlib
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import and_, func, select, text
+from sqlalchemy import and_, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from packages.domain.commands import AlertReceivedCommand
 from packages.domain.correlation_engine import CorrelationCandidate
-from packages.domain.enums import CLOSED_INCIDENT_STATUSES, AlertSeverity, IncidentStatus
+from packages.domain.enums import (
+    CLOSED_INCIDENT_STATUSES,
+    AlertSeverity,
+    AlertStatus,
+    IncidentStatus,
+)
 from packages.incident.db.models import (
     AlertRow,
     ConsumedEventRow,
+    EvidenceRefRow,
     IncidentRow,
     OutboxEventRow,
     ProcessedCommandRow,
@@ -119,6 +125,82 @@ def link_alert_to_incident(session: Session, alert_id: uuid.UUID, incident_id: u
     alert = session.get(AlertRow, alert_id)
     assert alert is not None
     alert.incident_id = incident_id
+
+
+def find_alert_to_resolve(
+    session: Session, *, command: AlertReceivedCommand, fingerprint: str
+) -> AlertRow | None:
+    """The alert a resolved notification refers to.
+
+    With an `external_id` (always true for Alertmanager, where it's the
+    episode identity `fingerprint:startsAt`) that's an exact
+    `(source, external_id)` lookup. Without one, the most recently received
+    alert with the same label fingerprint that is still linked to an open
+    incident -- the only deterministic reading of "this label set stopped
+    firing" available for sources that don't identify their alerts.
+    """
+    if command.external_id is not None:
+        return session.execute(
+            select(AlertRow).where(
+                AlertRow.source == command.source.value,
+                AlertRow.external_id == command.external_id,
+            )
+        ).scalar_one_or_none()
+    return (
+        session.execute(
+            select(AlertRow)
+            .join(IncidentRow, IncidentRow.id == AlertRow.incident_id)
+            .where(
+                AlertRow.fingerprint == fingerprint,
+                AlertRow.status == AlertStatus.FIRING.value,
+                IncidentRow.status.notin_(_CLOSED_STATUS_VALUES),
+            )
+            .order_by(AlertRow.received_at.desc())
+            .limit(1)
+        )
+        .scalars()
+        .one_or_none()
+    )
+
+
+def mark_alert_resolved(session: Session, alert: AlertRow, now: datetime) -> None:
+    alert.status = AlertStatus.RESOLVED.value
+    alert.resolved_at = now
+
+
+def insert_unlinked_resolved_alert(
+    session: Session, *, command: AlertReceivedCommand, fingerprint: str, now: datetime
+) -> AlertRow:
+    """Record a resolved notification whose firing episode was never seen.
+
+    Stored (so a late, out-of-order *firing* notification for the same
+    episode finds it and doesn't open an incident for an episode that has
+    already ended) but linked to no incident.
+    """
+    stmt = (
+        pg_insert(AlertRow)
+        .values(
+            external_id=command.external_id,
+            source=command.source.value,
+            fingerprint=fingerprint,
+            labels=command.labels,
+            annotations=command.annotations,
+            severity=command.severity.value,
+            status=AlertStatus.RESOLVED.value,
+            raw_payload=command.raw_payload,
+            resolved_at=now,
+        )
+        .returning(AlertRow)
+    )
+    return session.execute(stmt).scalars().one()
+
+
+def count_firing_alerts(session: Session, incident_id: uuid.UUID) -> int:
+    stmt = select(func.count()).where(
+        AlertRow.incident_id == incident_id,
+        AlertRow.status == AlertStatus.FIRING.value,
+    )
+    return int(session.execute(stmt).scalar_one())
 
 
 # --- incidents -----------------------------------------------------------
@@ -261,6 +343,42 @@ def touch_incident_updated_at(session: Session, incident: IncidentRow) -> None:
     incident.updated_at = datetime.now(UTC)
 
 
+def transition_incident_status(
+    session: Session,
+    *,
+    incident: IncidentRow,
+    to_status: IncidentStatus,
+    now: datetime,
+    closes: bool,
+) -> bool:
+    """Optimistic-concurrency status transition
+    (docs/architecture/04-incident-state-machine.md, "Concurrency control"):
+    `UPDATE ... WHERE id = :id AND version = :expected`. Returns False if
+    the row's version moved underneath us (zero rows updated); the caller
+    decides whether that's a retry or a conflict. On success the ORM
+    object is refreshed with the new status/version.
+    """
+    values: dict[str, object] = {
+        "status": to_status.value,
+        "version": incident.version + 1,
+        "updated_at": now,
+    }
+    if closes:
+        values["closed_at"] = now
+    stmt = (
+        update(IncidentRow)
+        .where(IncidentRow.id == incident.id, IncidentRow.version == incident.version)
+        .values(**values)
+        .returning(IncidentRow.version)
+        .execution_options(synchronize_session=False)
+    )
+    new_version = session.execute(stmt).scalar_one_or_none()
+    if new_version is None:
+        return False
+    session.refresh(incident)
+    return True
+
+
 def get_incident_with_alerts(
     session: Session, incident_id: uuid.UUID
 ) -> tuple[IncidentRow, list[AlertRow]] | None:
@@ -271,6 +389,83 @@ def get_incident_with_alerts(
         session.execute(select(AlertRow).where(AlertRow.incident_id == incident_id)).scalars().all()
     )
     return incident, list(alerts)
+
+
+def list_incident_summaries(
+    session: Session,
+    *,
+    environment: str | None,
+    exclude_incident_id: uuid.UUID | None,
+    created_before: datetime | None,
+    limit: int,
+) -> list[tuple[IncidentRow, list[AlertRow]]]:
+    """Most recent incidents (newest first), each with its alerts -- the
+    candidate pool for deterministic historical-incident search. Scoring
+    happens in evidence-service; this is just a bounded read."""
+    stmt = select(IncidentRow).order_by(IncidentRow.created_at.desc(), IncidentRow.id).limit(limit)
+    if environment is not None:
+        stmt = stmt.where(IncidentRow.environment == environment)
+    if exclude_incident_id is not None:
+        stmt = stmt.where(IncidentRow.id != exclude_incident_id)
+    if created_before is not None:
+        stmt = stmt.where(IncidentRow.created_at <= created_before)
+    incidents = list(session.execute(stmt).scalars().all())
+    if not incidents:
+        return []
+    alerts = session.execute(
+        select(AlertRow).where(AlertRow.incident_id.in_([i.id for i in incidents]))
+    ).scalars()
+    by_incident: dict[uuid.UUID, list[AlertRow]] = {i.id: [] for i in incidents}
+    for alert in alerts:
+        assert alert.incident_id is not None
+        by_incident[alert.incident_id].append(alert)
+    return [(i, by_incident[i.id]) for i in incidents]
+
+
+# --- evidence_refs -------------------------------------------------------------
+
+
+def insert_evidence_ref(
+    session: Session,
+    *,
+    evidence_id: uuid.UUID,
+    incident_id: uuid.UUID,
+    investigation_id: uuid.UUID | None,
+    evidence_type: str,
+    content_hash: str,
+    source_system: str,
+    collected_at: datetime,
+) -> bool:
+    """Insert-only. Returns False if a ref with this id already exists
+    (an idempotent re-registration); never updates an existing row."""
+    stmt = (
+        pg_insert(EvidenceRefRow)
+        .values(
+            id=evidence_id,
+            incident_id=incident_id,
+            investigation_id=investigation_id,
+            evidence_type=evidence_type,
+            content_hash=content_hash,
+            source_system=source_system,
+            collected_at=collected_at,
+        )
+        .on_conflict_do_nothing(index_elements=["id"])
+        .returning(EvidenceRefRow.id)
+    )
+    return session.execute(stmt).scalar_one_or_none() is not None
+
+
+def get_evidence_ref(session: Session, evidence_id: uuid.UUID) -> EvidenceRefRow | None:
+    return session.get(EvidenceRefRow, evidence_id)
+
+
+def list_evidence_refs(session: Session, incident_id: uuid.UUID) -> list[EvidenceRefRow]:
+    stmt = (
+        select(EvidenceRefRow)
+        .where(EvidenceRefRow.incident_id == incident_id)
+        .order_by(EvidenceRefRow.collected_at, EvidenceRefRow.id)
+    )
+    return list(session.execute(stmt).scalars().all())
 
 
 # --- outbox ----------------------------------------------------------------

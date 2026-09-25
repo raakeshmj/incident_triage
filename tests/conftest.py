@@ -19,3 +19,31 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             item.add_marker(pytest.mark.integration)
         elif "/tests/e2e/" in path:
             item.add_marker(pytest.mark.e2e)
+
+
+STACK_BACKENDS = {
+    "prometheus": "PROMETHEUS_URL",
+    "loki": "LOKI_URL",
+    "tempo": "TEMPO_URL",
+}
+# Functional probes: single-binary Loki/Tempo serve queries while their ring-based
+# /ready endpoints still report 503, so /ready is not a usable signal here.
+_READY_PATHS = {"prometheus": "/-/ready", "loki": "/loki/api/v1/labels", "tempo": "/api/echo"}
+
+
+@pytest.fixture(scope="session")
+def stack_urls() -> dict[str, str]:
+    """Base URLs of the live telemetry backends; skips unless all are ready."""
+    import os
+
+    import httpx
+
+    urls = {name: os.environ.get(var, "") for name, var in STACK_BACKENDS.items()}
+    for name, url in urls.items():
+        try:
+            ready = httpx.get(url + _READY_PATHS[name], timeout=3.0).status_code == 200
+        except (httpx.HTTPError, ValueError):
+            ready = False
+        if not ready:
+            pytest.skip(f"{name} not ready at {url!r}; run `make infra-up-full`")
+    return urls

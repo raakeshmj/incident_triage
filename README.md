@@ -2,10 +2,10 @@
 
 Autonomous Production Incident Triage & Response platform.
 
-**Status: Phase 1 + Phase 2 + Phase 3 implemented.** A working vertical
-slice with a production-shaped event transport, a real correlation
-engine, and now a realistic local production environment feeding it real
-alerts:
+**Status: Phases 1-4 implemented.** A working vertical slice with a
+production-shaped event transport, a real correlation engine, a realistic
+local production environment feeding it real alerts, and (Phase 4) the
+trusted evidence and investigation substrate a future agent will use:
 
 ```
 checkout/payment/inventory services (simulated, chaos-injectable)
@@ -16,6 +16,14 @@ checkout/payment/inventory services (simulated, chaos-injectable)
     -> [correlation engine decides: new incident, or join an existing one]
     -> PostgreSQL -> AlertReceived / IncidentCreated / AlertCorrelated
     -> transactional outbox -> sharded Redis Streams -> durable consumer
+    <- resolved alerts: TRIAGING -> CANCELLED once no linked alert fires
+
+incident
+    -> investigation tool (packages/tools; strict contracts, not connected to any model)
+    -> evidence-service (packages/evidence; scope-checked, bounded, allow-listed)
+    -> adapter -> Prometheus | Loki | Tempo | deployments | config | Git | incident history
+    -> immutable, content-hashed EvidenceRecord + incident-core EvidenceRef
+    -> compact result carrying an evidence_id
 ```
 
 See [`docs/`](docs/) for the full architecture,
@@ -24,9 +32,13 @@ this maps to and what's next, ADR-0014/ADR-0015 for the two biggest
 Phase 2 decisions (event transport, correlation engine), and
 [`docs/architecture/14-observability-and-chaos.md`](docs/architecture/14-observability-and-chaos.md)
 (+ ADR-0016/ADR-0017) for Phase 3's simulated services, telemetry, alert
-rules, and chaos scenarios. Nothing beyond this scope is implemented yet:
-no Claude/LLM agent, no evidence service, no policy engine, no
-remediation, no Kubernetes, no Incident Intelligence dashboard.
+rules, and chaos scenarios, and
+[`docs/architecture/08-evidence-model.md`](docs/architecture/08-evidence-model.md)
+/ [`07-agent-tool-architecture.md`](docs/architecture/07-agent-tool-architecture.md)
+(+ ADR-0018/ADR-0019) for Phase 4's evidence service, tool contracts, and
+alert resolution. Nothing beyond this scope is implemented yet: no
+Claude/LLM agent, no policy engine, no remediation, no Kubernetes, no
+Incident Intelligence dashboard.
 
 ## Repository layout
 
@@ -35,6 +47,7 @@ apps/
   api/          FastAPI process: alert-ingestion's POST /api/v1/alerts
                 and incident-core's GET /api/v1/incidents/{id}
   worker/       the transactional outbox relay (Postgres -> Redis Stream)
+  evidence/     evidence-service's internal API: tools + evidence replay/audit (Phase 4)
   dashboard/    reserved for the Next.js UI (not implemented yet)
 
 packages/
@@ -45,18 +58,19 @@ packages/
   incident/     incident-core: the sole writer of Alert/Incident state
                 (DB models, repository, service, Alembic migrations)
   telemetry/    structured logging, request context, tracing + metrics stubs
+  evidence/     evidence-service: adapters, immutable evidence store, scope (Phase 4)
+  tools/        investigation tool contracts over evidence-service (Phase 4)
   agents/       reserved (Phase 5 -- investigation agent)
-  tools/        reserved (Phase 5 -- evidence-service tool proxies)
   policy/       reserved (Phase 3 -- policy engine)
   evaluation/   reserved (Phase 5+ -- offline eval harness)
 
-infrastructure/ docker-compose configs: Postgres schemas/roles, and
-                Phase 3's otel-collector/prometheus/loki+promtail/grafana/
-                alertmanager
+infrastructure/ docker-compose configs: Postgres schemas/roles, Phase 3's
+                otel-collector/prometheus/loki+promtail/grafana/alertmanager,
+                Phase 4's tempo and evidence service catalog
 simulator/      send_alert.py (synthetic alert CLI), services/ (3
                 simulated production services + load-generator, Phase 3),
-                chaos/ (7 chaos scenarios + CLI), scenarios.md (5+
-                documented incidents)
+                chaos/ (7 chaos scenarios + CLI), changes/ (simulated
+                deployment + config registries, Phase 4), scenarios.md
 evals/          reserved for the eval harness's golden dataset
 scripts/        dev-workflow helpers (wait_for_services.py)
 tests/          unit / integration / e2e (see tests/README.md)
@@ -74,7 +88,7 @@ Requires Docker, Python 3.11+.
 cp .env.example .env
 make install          # pip install -e ".[dev]"
 make infra-up         # docker compose up -d (Postgres + Redis), waits for both
-make migrate          # alembic upgrade head
+make migrate          # both schemas: incident_core, then evidence (its own role)
 make run-api          # uvicorn, in one terminal
 ```
 
@@ -152,6 +166,41 @@ curl -s localhost:8000/api/v1/incidents/<id>   # the incident it created
 python -m simulator.chaos.cli stop --service checkout-service
 ```
 
+## Phase 4: evidence and investigation substrate
+
+With the full environment up (`make infra-up-full` -- now also Tempo, and it
+seeds the simulated deployment/config registries), run the API and the
+internal evidence-service:
+
+```bash
+make run-api        # :8000 -- Alertmanager delivers here
+make run-evidence   # :8010 -- internal only: tools + evidence replay/audit
+```
+
+Walk a real incident from alert to evidence to resolution:
+
+```bash
+python -m simulator.chaos.cli start bad-deployment --service checkout-service
+# ~45s later: HighErrorRate fires -> Alertmanager -> a TRIAGING incident
+docker compose exec postgres psql -U postgres -d incident_intelligence \
+  -c "select id, status, service from incident_core.incidents order by created_at desc limit 3"
+
+E=localhost:8010/internal/v1/incidents/<id>
+curl -s $E/tools/get_metrics        -H 'Content-Type: application/json' -d '{"arguments": {"metric": "error_rate"}}'
+curl -s $E/tools/get_logs           -H 'Content-Type: application/json' -d '{"arguments": {"severities": ["ERROR"]}}'
+curl -s $E/tools/get_traces         -H 'Content-Type: application/json' -d '{"arguments": {"mode": "errors"}}'
+curl -s $E/tools/get_trace          -H 'Content-Type: application/json' -d '{"arguments": {"trace_id": "<from get_traces>"}}'
+curl -s $E/tools/get_deploys        -H 'Content-Type: application/json' -d '{}'
+curl -s $E/tools/get_recent_commits -H 'Content-Type: application/json' -d '{}'
+curl -s $E/evidence                                    # every record, replay order, with provenance
+curl -s localhost:8010/internal/v1/evidence/<evidence_id>/verify
+
+python -m simulator.chaos.cli stop --service checkout-service   # records the rollback
+# ~1 min later the alert resolves and the incident goes TRIAGING -> CANCELLED
+```
+
+`GET localhost:8010/internal/v1/tools` lists every tool's JSON Schema.
+
 ## Tests
 
 ```bash
@@ -159,10 +208,13 @@ make test              # everything
 make test-unit         # packages/domain, packages/events -- no infrastructure needed
 make test-integration  # packages/incident + packages/events against real Postgres/Redis
 make test-e2e          # the FastAPI app in-process against real Postgres/Redis
+make test-stack        # needs `make infra-up-full`: live Prometheus/Loki/Tempo
+                       # adapters + the live chaos-incident e2e (~2-4 min)
 ```
 
 Integration and e2e tests auto-skip with a clear message if
-`make infra-up && make migrate` hasn't been run first.
+`make infra-up && make migrate` hasn't been run first; `stack`-marked tests
+skip unless the full environment is up.
 
 ## Lint / format / types
 

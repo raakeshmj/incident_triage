@@ -307,6 +307,43 @@ internal uniqueness token, not a stable "the identity of this alert type"
 value — code that wants the latter should read the initiating alert's
 `fingerprint` directly.
 
+## Phase 4 additions (as implemented)
+
+Migration `0003_resolution_evidence` (incident_core):
+
+```sql
+ALTER TABLE alerts ADD COLUMN resolved_at TIMESTAMPTZ;   -- set once, firing -> resolved
+CREATE INDEX ix_alerts_incident_id_status ON alerts (incident_id, status);
+
+-- Deviation from the sketch above (ADR-0018): keyed to the incident, with a
+-- nullable investigation_id and no FK on it until `investigations` exists.
+CREATE TABLE evidence_refs (
+    id                UUID PRIMARY KEY,               -- = evidence.evidence_records.id
+    incident_id       UUID NOT NULL REFERENCES incidents(id),
+    investigation_id  UUID,
+    evidence_type     TEXT NOT NULL,
+    content_hash      TEXT NOT NULL,
+    source_system     TEXT NOT NULL,
+    collected_at      TIMESTAMPTZ NOT NULL,
+    registered_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- + trigger evidence_refs_immutable: BEFORE UPDATE OR DELETE -> raise
+```
+
+evidence-service's own migration history (`alembic -n evidence`, run as
+`evidence_service_role`, version table inside `evidence`) creates
+`evidence.evidence_records` -- the full record shape is in
+`08-evidence-model.md`, "Phase 4 implementation" -- with the same
+insert-only trigger and a `content_hash` format check. Neither role can
+read the other's schema (verified by
+`tests/integration/test_evidence_store.py`).
+
+Alert identity changed with resolution support (ADR-0019): Alertmanager
+alerts' `external_id` is now the firing episode (`fingerprint:startsAt`),
+and a resolved notification's command idempotency key carries a
+`:resolved` suffix, so it's never deduplicated against its own firing
+notification.
+
 ## Alert deduplication and retries
 
 Alert sources retry webhook deliveries on timeout or a 5xx response, and

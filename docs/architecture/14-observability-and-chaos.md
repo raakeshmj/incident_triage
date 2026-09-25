@@ -43,13 +43,21 @@ Dockerfile.
 ## Telemetry architecture
 
 - **Traces**: OpenTelemetry SDK, OTLP/HTTP export to `otel-collector`
-  (`infrastructure/otel/otel-collector-config.yaml`), which exports them
-  via its `debug` exporter (logged, inspectable) -- there's no trace
-  storage backend (Tempo/Jaeger) in this phase; the point is to prove
-  W3C `traceparent` propagation and per-hop span attribution across the
-  three-service chain, not to stand up a full trace UI. One server span
-  per inbound request (`ObservabilityMiddleware`), one client span per
-  outbound call (`http_client.call_downstream`).
+  (`infrastructure/otel/otel-collector-config.yaml`), which forwards them
+  over OTLP/gRPC to **Grafana Tempo** (Phase 4, `infrastructure/tempo/`:
+  single binary, local filesystem storage, 24h block retention, query API
+  on :3200). One server span per inbound request
+  (`ObservabilityMiddleware`), one client span per outbound call
+  (`http_client.call_downstream`), W3C `traceparent` propagated across all
+  three hops -- one trace spans checkout -> payment -> inventory.
+  *(Phase 3 exported traces to the collector's `debug` exporter only.)*
+- **Trace <-> log correlation**: every structured log line carries the
+  active span's `trace_id`/`span_id`, so a trace id finds that request's
+  log lines in Loki (the evidence Loki adapter's `trace_id` filter, and
+  Grafana's Loki `derivedFields` -> Tempo link), and Grafana's Tempo
+  datasource links a span back to its service's logs (`tracesToLogsV2`).
+  Tempo returns ids with leading zeros stripped; the evidence adapters
+  normalize every trace id to 32 lowercase hex characters.
 - **Metrics**: an OTel `PrometheusMetricReader`, exposed at each service's
   own `GET /metrics` in Prometheus exposition format. Prometheus scrapes
   each service directly (`infrastructure/prometheus/prometheus.yml`) --
@@ -207,7 +215,45 @@ API hop with synthetic, hand-built alerts, not the simulated services'
 own generated telemetry under sustained load. They were only visible by
 actually running `docker compose up` and watching real metrics.
 
-## Known limitations (Phase 3)
+## Phase 4 additions
+
+- **Tempo** (above), and the evidence adapters that read Prometheus, Loki
+  and Tempo -- `docs/architecture/08-evidence-model.md`, "Phase 4
+  implementation".
+- **Change registries** (`simulator/changes/`): the simulated CI/CD and
+  config systems, as append-only Redis lists
+  (`changes:deployments:{service}`, `changes:config:{service}`). Seeded by
+  `make infra-up-full` (`python -m simulator.changes.cli seed`) with each
+  service's actual deployed version and the latest commit touching its
+  code. `bad-deployment` records a deploy on start and a rollback on stop;
+  `bad-configuration` records a config push (`request_pipeline_config_version`
+  v1 -> v2) and its revert. Records say *what* changed and who deployed it
+  (`ci-pipeline` / `config-service`) -- never "chaos", never a cause.
+  A scenario left to expire on its own records no rollback, because
+  nothing rolled back.
+- **Resolved alerts now drive the lifecycle** (ADR-0019): Alertmanager
+  `external_id` is the firing episode (`fingerprint:startsAt`), and a
+  resolution moves a `TRIAGING` incident to `CANCELLED` once no linked
+  alert is firing.
+- **Bug fixed**: `bad-deployment` never injected its `error_rate` --
+  `ChaosController.should_fail()` omitted it, so the scenario flipped the
+  version label but never fired `HighErrorRate`, contrary to scenario 1 in
+  `simulator/scenarios.md`. Phase 3's demos used `error-storm`, so nothing
+  caught it; Phase 4's live e2e test (`tests/e2e/test_evidence_live_incident.py`)
+  did, on its first run.
+- **Also caught during Phase 4's manual verification** (both fixed, both
+  now covered by tests):
+  - Tempo's search API returns *some* `limit` matches, not the newest --
+    the trace adapter cut to the caller's limit before ordering, so an
+    "errors" search during a live incident returned pre-incident traces.
+    It now over-fetches up to 100 candidates, orders, then cuts.
+  - The integration tests' "isolated" Redis fixture passed `db=15` to
+    `Redis.from_url`, but the URL's own `/0` wins -- so each run flushed the
+    live Redis (change registries, chaos state, Phase 2 event streams). The
+    DB is now set in the URL, and the fixture refuses to flush anything but
+    DB 15.
+
+## Known limitations (Phase 3, updated in Phase 4)
 
 - No real HMAC signing on the Alertmanager webhook, only a shared bearer
   token.
@@ -215,12 +261,16 @@ actually running `docker compose up` and watching real metrics.
   (stopping a container isn't a per-request/in-process effect); it's
   demonstrated via `docker compose stop <service>` -- see
   `simulator/scenarios.md`.
-- No trace storage backend (Tempo/Jaeger) -- traces are exported to the
-  Collector's `debug` exporter and are inspectable in its logs, not
-  queryable in Grafana.
-- `RESOLVED`-status alerts (Alertmanager's `send_resolved: true`) are
-  recorded like any other alert but don't yet drive any incident-status
-  transition -- that's the state machine's job (a later phase).
+- ~~No trace storage backend~~ -- fixed in Phase 4 (Tempo).
+- ~~`RESOLVED`-status alerts don't drive any incident-status transition~~
+  -- fixed in Phase 4 (ADR-0019).
+- Trace search is "newest/slowest among up to 100 matches Tempo returns",
+  not globally newest when more than 100 traces match in the window --
+  a narrower window gets exact results.
+- Single-binary Loki and Tempo report 503 on their ring-based `/ready`
+  endpoints while serving queries normally; health checks (and
+  `tests/conftest.py::stack_urls`) probe functional endpoints instead
+  (`/loki/api/v1/labels`, `/api/echo`).
 - The committed `simulator/services/*/Dockerfile`s are plain `pip
   install`-from-PyPI builds with no environment-specific workarounds. In
   the sandboxed environment this was built in, both Docker Hub image

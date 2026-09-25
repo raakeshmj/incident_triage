@@ -26,6 +26,8 @@ import sys
 import time
 
 import redis
+
+from simulator.changes.registry import ChangeRegistry
 from simulator.chaos.scenarios import SCENARIOS, get
 
 
@@ -48,6 +50,7 @@ def cmd_start(args: argparse.Namespace) -> int:
     }
     client = _redis_client()
     client.set(f"chaos:{args.service}", json.dumps(state))
+    _record_change_on_start(client, scenario.name, args.service, params)
     print(f"started {scenario.name!r} on {args.service} for {duration}s: {params}")
     print(f"expected effect: {scenario.effect.replace('<svc>', args.service)}")
     print(f"watch for alert: {scenario.fires_alert}")
@@ -56,9 +59,55 @@ def cmd_start(args: argparse.Namespace) -> int:
 
 def cmd_stop(args: argparse.Namespace) -> int:
     client = _redis_client()
+    raw = client.get(f"chaos:{args.service}")
     deleted = client.delete(f"chaos:{args.service}")
+    if raw:
+        _record_change_on_stop(client, json.loads(raw)["scenario"], args.service)
     print(f"stopped chaos on {args.service}" if deleted else f"no active chaos on {args.service}")
     return 0
+
+
+# The two scenarios that *are* a change in the simulated world (a rollout, a
+# config push) record that change in the simulated CI/CD / config systems
+# (simulator/changes/), exactly as the real systems would -- and record the
+# rollback / revert when stopped. The records say what changed, never why:
+# `deployed_by` is the pipeline, not "chaos". A scenario left to expire on its
+# own records no rollback, because nothing rolled back.
+
+
+def _record_change_on_start(client: redis.Redis, scenario: str, service: str, params: dict) -> None:
+    registry = ChangeRegistry(client)
+    registry.seed()
+    if scenario == "bad-deployment":
+        record = registry.record_deployment(
+            service=service, version=params["version"], commit_sha=params.get("commit_sha")
+        )
+        print(f"deployment recorded: {record['previous_version']} -> {record['version']}")
+    elif scenario == "bad-configuration":
+        current = (registry.current_config(service) or {}).get("new_value") or "v1"
+        next_value = f"v{int(current.lstrip('v') or 1) + 1}" if current[1:].isdigit() else "v2"
+        record = registry.record_config_change(service=service, new_value=next_value)
+        print(f"config change recorded: {record['key']} {record['old_value']} -> {next_value}")
+
+
+def _record_change_on_stop(client: redis.Redis, scenario: str, service: str) -> None:
+    registry = ChangeRegistry(client)
+    if scenario == "bad-deployment":
+        current = registry.current_deployment(service)
+        if current and current.get("previous_version"):
+            target = registry.find_deployment(service, current["previous_version"])
+            record = registry.record_deployment(
+                service=service,
+                version=current["previous_version"],
+                commit_sha=(target or {}).get("commit_sha"),
+                change_type="rollback",
+            )
+            print(f"rollback recorded: {record['previous_version']} -> {record['version']}")
+    elif scenario == "bad-configuration":
+        current = registry.current_config(service)
+        if current and current.get("old_value"):
+            record = registry.record_config_change(service=service, new_value=current["old_value"])
+            print(f"config revert recorded: {record['old_value']} -> {record['new_value']}")
 
 
 def cmd_status(_args: argparse.Namespace) -> int:

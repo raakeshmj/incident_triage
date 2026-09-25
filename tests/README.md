@@ -28,6 +28,29 @@
   `FakeRedisStreams` (a minimal in-memory Redis Streams double for
   unit-testing the consumer without a live server).
 
+Phase 4 additions:
+
+- `unit/evidence/` -- hashing, sanitizing, scope/window/limit validation, and
+  every adapter against canned backend responses (MockTransport).
+- `unit/tools/` -- tool contracts, strict inputs, executor retries/budgets,
+  `submit_findings`' exactly-one-outcome rule.
+- `unit/test_boundaries.py` -- import-level enforcement of
+  agent -> tools -> evidence service -> backends (and alert-ingestion's
+  no-DB rule).
+- `integration/test_evidence_store.py` -- persistence, refs, DB-level
+  immutability, per-role schema confinement, replay order, verification.
+- `integration/test_change_sources.py` -- deployment/config registries
+  (isolated Redis DB 15), the Git adapter on this repository, historical
+  incident search.
+- `integration/test_alert_resolution.py` + `e2e/test_alertmanager_webhook.py`
+  -- resolution semantics, including the concurrent resolve-vs-correlate case.
+- `stack`-marked (`make test-stack`, needs `make infra-up-full`):
+  `integration/test_telemetry_adapters.py` (live Prometheus/Loki/Tempo) and
+  `e2e/test_evidence_live_incident.py` (real chaos incident -> evidence ->
+  resolution). The Phase 3 `e2e/test_alertmanager_container.py` starts its
+  own Alertmanager on :9093, so it runs under `make infra-up` and skips when
+  the full stack already holds that port.
+
 Integration and e2e tests auto-skip with a clear message if Postgres or
 Redis isn't reachable, rather than failing opaquely.
 

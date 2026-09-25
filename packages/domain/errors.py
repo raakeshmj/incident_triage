@@ -13,3 +13,18 @@ class DomainError(Exception):
 
 class InvalidAlertError(DomainError):
     """Raised when an inbound alert fails domain validation."""
+
+
+class IncidentNotFoundError(DomainError):
+    """A command or query referenced an incident id that does not exist."""
+
+
+class EvidenceRefConflictError(DomainError):
+    """An evidence id was re-registered with different content or a
+    different incident than it was first registered with -- evidence
+    references are immutable, so this is a rejection, never an overwrite."""
+
+
+class ConcurrentModificationError(DomainError):
+    """An optimistic-concurrency `version` check failed; the caller should
+    retry the (idempotent) command."""

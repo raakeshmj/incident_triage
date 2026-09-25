@@ -25,6 +25,9 @@ PRODUCER_INCIDENT_CORE = "incident-core"
 EVENT_TYPE_ALERT_RECEIVED = "AlertReceived"
 EVENT_TYPE_INCIDENT_CREATED = "IncidentCreated"
 EVENT_TYPE_ALERT_CORRELATED = "AlertCorrelated"
+EVENT_TYPE_ALERT_RESOLVED = "AlertResolved"
+EVENT_TYPE_INCIDENT_STATUS_CHANGED = "IncidentStatusChanged"
+EVENT_TYPE_EVIDENCE_REF_REGISTERED = "EvidenceRefRegistered"
 
 AGGREGATE_TYPE_ALERT = "Alert"
 AGGREGATE_TYPE_INCIDENT = "Incident"
@@ -63,3 +66,39 @@ class AlertCorrelatedPayload(BaseModel):
     incident_id: uuid.UUID
     score: float
     matched_signals: tuple[str, ...]
+
+
+class AlertResolvedPayload(BaseModel):
+    """A linked alert's firing episode ended (Phase 4).
+
+    `firing_alerts_remaining` is the number of the incident's linked alerts
+    still firing *after* this one resolved -- the exact fact the
+    `TRIAGING -> CANCELLED` guard evaluates, carried in the event so a
+    consumer can see why the incident did or didn't transition.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    alert_id: uuid.UUID
+    incident_id: uuid.UUID
+    firing_alerts_remaining: int
+
+
+class IncidentStatusChangedPayload(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    incident_id: uuid.UUID
+    from_status: str
+    to_status: str
+    reason: str
+    version: int
+
+
+class EvidenceRefRegisteredPayload(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    evidence_id: uuid.UUID
+    incident_id: uuid.UUID
+    evidence_type: str
+    source_system: str
+    content_hash: str

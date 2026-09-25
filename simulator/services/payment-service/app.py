@@ -15,6 +15,7 @@ import uuid
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
+
 from simulator.services.common.chaos import ChaosController
 from simulator.services.common.config import ServiceConfig
 from simulator.services.common.http_client import call_downstream

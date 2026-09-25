@@ -42,10 +42,11 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.trace import Status, StatusCode
 from prometheus_client import CONTENT_TYPE_LATEST, REGISTRY, generate_latest
-from simulator.services.common.config import ServiceConfig
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.types import ASGIApp
+
+from simulator.services.common.config import ServiceConfig
 
 
 def _add_severity(_logger: object, method_name: str, event_dict: dict) -> dict:

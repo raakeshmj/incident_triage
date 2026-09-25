@@ -62,3 +62,19 @@ def test_no_external_id_different_debounce_bucket_different_key():
         debounce_seconds=60,
     )
     assert k1 != k2
+
+
+def test_resolved_notification_gets_a_distinct_key_from_its_firing_notification():
+    from packages.domain.enums import AlertStatus
+
+    firing = derive_alert_idempotency_key(
+        source=AlertSource.PROMETHEUS, external_id="ep", normalized_payload={}
+    )
+    resolved = derive_alert_idempotency_key(
+        source=AlertSource.PROMETHEUS,
+        external_id="ep",
+        normalized_payload={},
+        status=AlertStatus.RESOLVED,
+    )
+    assert firing == "prometheus:external:ep"  # unchanged pre-Phase-4 shape
+    assert resolved == "prometheus:external:ep:resolved"

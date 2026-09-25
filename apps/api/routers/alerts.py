@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field, ValidationError
@@ -30,6 +31,7 @@ from apps.api.config import get_settings
 from apps.api.dependencies import get_incident_core_service
 from packages.domain.commands import AlertReceivedCommand
 from packages.domain.enums import AlertSeverity, AlertSource, AlertStatus
+from packages.domain.errors import ConcurrentModificationError
 from packages.domain.idempotency import derive_alert_idempotency_key
 from packages.incident.service import IncidentCoreService
 from packages.telemetry.context import bind_context
@@ -51,8 +53,11 @@ class IncomingAlertRequest(BaseModel):
 
 class AlertAcceptedResponse(BaseModel):
     alert_id: uuid.UUID
-    incident_id: uuid.UUID
+    # None only for a resolved notification whose firing episode was never
+    # seen -- recorded, but it opens no incident (Phase 4).
+    incident_id: uuid.UUID | None
     incident_created: bool
+    incident_status: str | None = None
 
 
 def _accept_alert(
@@ -75,8 +80,18 @@ def _accept_alert(
     unrecognized `severity` value -- exactly as the direct-POST path
     always has.
     """
+    try:
+        status_value = AlertStatus(status)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422, detail=f"unrecognized alert status {status!r}"
+        ) from exc
+
     key = idempotency_key or derive_alert_idempotency_key(
-        source=source, external_id=external_id, normalized_payload=raw_payload
+        source=source,
+        external_id=external_id,
+        normalized_payload=raw_payload,
+        status=status_value,
     )
 
     with bind_context(idempotency_key=key):
@@ -88,7 +103,7 @@ def _accept_alert(
                 labels=labels,
                 annotations=annotations,
                 severity=severity,  # type: ignore[arg-type]
-                status=status,  # type: ignore[arg-type]
+                status=status_value,
                 raw_payload=raw_payload,
             )
         except ValidationError as exc:
@@ -99,13 +114,19 @@ def _accept_alert(
             log.warning("alert_received.validation_failed", errors=errors)
             raise HTTPException(status_code=422, detail=errors) from exc
 
-        log.info("alert_received.accepted", source=source.value)
-        result = core.handle_alert_received(command)
+        log.info("alert_received.accepted", source=source.value, status=status_value.value)
+        try:
+            result = core.handle_alert_received(command)
+        except ConcurrentModificationError as exc:
+            # Retryable by construction (commands are idempotent): tell the
+            # sender to redeliver rather than reporting a server fault.
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return AlertAcceptedResponse(
         alert_id=result.alert_id,
         incident_id=result.incident_id,
         incident_created=result.incident_created,
+        incident_status=result.incident_status,
     )
 
 
@@ -168,6 +189,31 @@ class AlertmanagerWebhookResponse(BaseModel):
     accepted: list[AlertAcceptedResponse]
 
 
+def _alertmanager_episode_id(alert: AlertmanagerAlert) -> str | None:
+    """Identity of one firing *episode* of an Alertmanager alert.
+
+    Alertmanager's `fingerprint` hashes the label set only, so the same
+    alert firing, resolving, and firing again an hour later has one
+    fingerprint across both episodes -- using it alone (Phase 3) meant the
+    second episode deduped against the first forever. `startsAt` is fixed
+    for the life of an episode and repeated verbatim on its resolved
+    notification, so `fingerprint:startsAt` is exactly "this episode":
+    the firing and resolved notifications for one episode share it (so the
+    resolution finds the alert it ends), and a new episode gets a new one.
+    `startsAt` is normalized to UTC so formatting differences can't split
+    one episode into two.
+    """
+    if not alert.fingerprint:
+        return None
+    if not alert.startsAt:
+        return alert.fingerprint
+    try:
+        started = datetime.fromisoformat(alert.startsAt.replace("Z", "+00:00"))
+    except ValueError:
+        return f"{alert.fingerprint}:{alert.startsAt}"
+    return f"{alert.fingerprint}:{started.astimezone(UTC).isoformat()}"
+
+
 def _check_webhook_auth(authorization: str | None) -> None:
     expected = get_settings().alertmanager_webhook_token
     if not expected:
@@ -193,8 +239,9 @@ def receive_alertmanager_webhook(
         for alert in payload.alerts:
             # Mapping (docs/architecture/14-observability-and-chaos.md):
             #   source        -> always "prometheus" (Alertmanager's origin here)
-            #   external_id   -> alert.fingerprint (Alertmanager's own stable
-            #                    per-label-set dedup key -- reused as ours)
+            #   external_id   -> alert.fingerprint + ":" + startsAt -- one
+            #                    *firing episode* of that label set (Phase 4;
+            #                    see _alertmanager_episode_id)
             #   labels        -> alert.labels verbatim (already carries
             #                    service/environment/region/severity per
             #                    infrastructure/prometheus/alerts/*.yml)
@@ -208,7 +255,7 @@ def receive_alertmanager_webhook(
                 _accept_alert(
                     core,
                     source=AlertSource.PROMETHEUS,
-                    external_id=alert.fingerprint,
+                    external_id=_alertmanager_episode_id(alert),
                     labels=alert.labels,
                     annotations=alert.annotations,
                     severity=alert.labels.get("severity", ""),

@@ -35,6 +35,7 @@ import time
 from typing import Any
 
 import redis
+
 from simulator.services.common.telemetry import get_logger
 
 log = get_logger("chaos")
@@ -91,7 +92,16 @@ class ChaosController:
         import random
 
         state = self.current()
-        error_scenarios = ("error-storm", "bad-configuration", "dependency-failure")
+        # bad-deployment belongs here too: a broken build *is* the errors.
+        # (Phase 3 omitted it, so that scenario only flipped the version
+        # label and never fired HighErrorRate -- caught by Phase 4's live
+        # e2e test, tests/e2e/test_evidence_live_incident.py.)
+        error_scenarios = (
+            "error-storm",
+            "bad-configuration",
+            "dependency-failure",
+            "bad-deployment",
+        )
         if not state or state["scenario"] not in error_scenarios:
             return False
         return random.random() < float(state["params"].get("error_rate", 0.5))

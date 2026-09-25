@@ -30,8 +30,16 @@ The sole writer of `Alert` and `Incident` state (incident-core). See
   (`AlertReceived` + `IncidentCreated` or `AlertCorrelated`), record the
   idempotency ledger entry -- all or nothing. Takes an injectable `clock`
   for deterministic testing of time-windowed correlation decisions.
+  Phase 4 adds the resolved-alert path (`TRIAGING -> CANCELLED` once no
+  linked alert is firing, under the same lock, with an optimistic
+  `version` bump -- ADR-0019), `register_evidence_ref` (the one command
+  evidence-service sends -- ADR-0018), and read queries evidence-service
+  uses through its `IncidentGateway` (`list_incident_summaries`,
+  `list_evidence_refs`).
 - `migrations/` -- Alembic, rooted at the repo's `alembic.ini`.
-  `0001_initial_schema` (Phase 1), `0002_events_correlation` (Phase 2).
+  `0001_initial_schema` (Phase 1), `0002_events_correlation` (Phase 2),
+  `0003_resolution_evidence` (Phase 4: `alerts.resolved_at`, immutable
+  `evidence_refs`).
 
 ## Why other services don't import `db/*` directly
 

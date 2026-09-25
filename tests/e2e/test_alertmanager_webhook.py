@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import uuid
 
-from packages.incident.db.models import AlertRow
+from sqlalchemy import select
+
+from packages.incident.db.models import AlertRow, IncidentRow, OutboxEventRow
 
 WEBHOOK_TOKEN = "dev-local-alertmanager-token"
 AUTH_HEADERS = {"Authorization": f"Bearer {WEBHOOK_TOKEN}"}
@@ -90,11 +92,12 @@ def test_single_alert_maps_to_incident_with_metadata_intact(client, session_fact
     with session_factory() as session:
         alert_row = session.get(AlertRow, uuid.UUID(accepted["alert_id"]))
     assert alert_row is not None
-    # `external_id` is Alertmanager's own fingerprint, reused verbatim for
-    # idempotency; `fingerprint` is incident-core's *own* correlation
-    # fingerprint (packages.domain.correlation.compute_fingerprint over
-    # source+labels) -- a distinct concept, not expected to match.
-    assert alert_row.external_id == fingerprint
+    # `external_id` is the firing *episode*: Alertmanager's fingerprint plus
+    # the episode's startsAt (Phase 4, see _alertmanager_episode_id);
+    # `fingerprint` is incident-core's *own* correlation fingerprint
+    # (packages.domain.correlation.compute_fingerprint over source+labels)
+    # -- a distinct concept, not expected to match either.
+    assert alert_row.external_id == f"{fingerprint}:2024-06-01T12:00:00+00:00"
     assert alert_row.labels["alert_type"] == "availability"
     assert alert_row.labels["region"] == "us-east-1"
     assert alert_row.annotations["runbook_url"].endswith("higherrorrate")
@@ -158,18 +161,103 @@ def test_duplicate_webhook_delivery_is_idempotent_via_fingerprint(client):
     assert first.json() == second.json()
 
 
-def test_resolved_status_is_accepted_and_recorded(client):
-    alert = _alertmanager_alert(
-        alertname="HighErrorRate", service="checkout-service", status="resolved"
-    )
+def _post(client, *alerts: dict) -> list[dict]:
     response = client.post(
-        "/api/v1/alerts/alertmanager", json=_webhook_payload(alert), headers=AUTH_HEADERS
+        "/api/v1/alerts/alertmanager", json=_webhook_payload(*alerts), headers=AUTH_HEADERS
     )
-    assert response.status_code == 202
-    incident = client.get(
-        f"/api/v1/incidents/{response.json()['accepted'][0]['incident_id']}"
-    ).json()
+    assert response.status_code == 202, response.text
+    return response.json()["accepted"]
+
+
+def _resolved(alert: dict) -> dict:
+    """The resolved notification Alertmanager sends for the same episode:
+    same labels, fingerprint and startsAt; status resolved; endsAt set."""
+    return {**alert, "status": "resolved", "endsAt": "2024-06-01T12:05:00Z"}
+
+
+def test_resolving_the_only_alert_cancels_a_triaging_incident(client):
+    alert = _alertmanager_alert(alertname="HighErrorRate", service="checkout-service")
+    [fired] = _post(client, alert)
+    assert fired["incident_status"] == "TRIAGING"
+
+    [resolved] = _post(client, _resolved(alert))
+
+    assert resolved["alert_id"] == fired["alert_id"]
+    assert resolved["incident_id"] == fired["incident_id"]
+    assert resolved["incident_status"] == "CANCELLED"
+    incident = client.get(f"/api/v1/incidents/{fired['incident_id']}").json()
+    assert incident["status"] == "CANCELLED"
+    assert incident["closed_at"] is not None
     assert incident["alerts"][0]["status"] == "resolved"
+    assert incident["alerts"][0]["resolved_at"] is not None
+
+
+def test_one_resolved_alert_does_not_end_an_incident_another_alert_still_fires_for(client):
+    error_rate = _alertmanager_alert(alertname="HighErrorRate", service="payment-service")
+    latency = _alertmanager_alert(
+        alertname="HighP95Latency",
+        service="payment-service",
+        severity="warning",
+        alert_type="performance",
+        starts_at="2024-06-01T12:00:10Z",
+    )
+    first, second = _post(client, error_rate, latency)
+    assert first["incident_id"] == second["incident_id"]
+
+    [after_one] = _post(client, _resolved(error_rate))
+    assert after_one["incident_status"] == "TRIAGING"
+
+    [after_both] = _post(client, _resolved(latency))
+    assert after_both["incident_status"] == "CANCELLED"
+
+
+def test_duplicate_resolved_notifications_are_harmless(client, session_factory):
+    alert = _alertmanager_alert(alertname="HighErrorRate", service="checkout-service")
+    [fired] = _post(client, alert)
+
+    first = _post(client, _resolved(alert))
+    second = _post(client, _resolved(alert))
+    assert first == second
+
+    with session_factory() as session:
+        status_changes = session.execute(
+            select(OutboxEventRow).where(
+                OutboxEventRow.event_type == "IncidentStatusChanged",
+                OutboxEventRow.aggregate_id == uuid.UUID(fired["incident_id"]),
+            )
+        ).all()
+    assert len(status_changes) == 1
+
+
+def test_resolution_without_a_seen_firing_episode_opens_nothing(client, session_factory):
+    alert = _alertmanager_alert(alertname="HighErrorRate", service="checkout-service")
+    [resolved] = _post(client, _resolved(alert))
+    assert resolved["incident_id"] is None
+
+    # ...and the late, out-of-order firing notification for that same,
+    # already-ended episode doesn't open one either.
+    [late_firing] = _post(client, alert)
+    assert late_firing["incident_id"] is None
+    assert late_firing["alert_id"] == resolved["alert_id"]
+
+    with session_factory() as session:
+        assert session.execute(select(IncidentRow)).first() is None
+
+
+def test_a_new_firing_episode_after_resolution_opens_a_new_incident(client):
+    fingerprint = uuid.uuid4().hex
+    first_episode = _alertmanager_alert(
+        alertname="HighErrorRate", service="checkout-service", fingerprint=fingerprint
+    )
+    [fired] = _post(client, first_episode)
+    _post(client, _resolved(first_episode))
+
+    second_episode = {**first_episode, "startsAt": "2024-06-01T13:00:00Z"}
+    [refired] = _post(client, second_episode)
+
+    assert refired["incident_created"] is True
+    assert refired["incident_id"] != fired["incident_id"]
+    assert refired["incident_status"] == "TRIAGING"
 
 
 def test_missing_required_label_returns_422(client):

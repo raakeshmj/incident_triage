@@ -41,3 +41,17 @@ and `scenarios.md` for 6 worked incident scenarios.
 More elaborate scenario generation (multi-alert storms, realistic
 Alertmanager payload shapes for `send_alert.py` itself) is future work;
 Phase 3 covers that ground through the real Alertmanager path instead.
+
+## Phase 4: change registries
+
+- `changes/registry.py` + `changes/cli.py` -- the simulated CI/CD and config
+  systems: append-only Redis lists of deployments and config changes that
+  evidence-service's change adapter reads (it never writes them). Seeded by
+  `make infra-up-full` / `make seed-changes`; `bad-deployment` and
+  `bad-configuration` record their deploy/config push on `start` and the
+  rollback/revert on `stop`.
+
+  ```
+  python -m simulator.changes.cli seed
+  python -m simulator.changes.cli list
+  ```

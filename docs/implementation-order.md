@@ -30,6 +30,18 @@ alert-ingestion a second, real alert source alongside the synthetic one —
 it does not touch this document's actual "Phase 3 — Policy engine and
 action catalog," which remains unstarted.
 
+Build session "Phase 4" delivers most of this document's **Phase 2
+(evidence-service)**: Prometheus, Loki *and* Tempo adapters plus
+deployment, config, Git and incident-history sources; immutable,
+content-hashed evidence storage in its own schema with incident-core
+references (ADR-0018); and the investigation tool contracts from §07,
+built and tested but not connected to any model. Not delivered from that
+phase: `record`/`replay` *modes* (live only), and the "hand-authored test
+remediation through VERIFYING -> RESOLVED" exit criterion, which needs
+remediation (still out of scope). It also implements the state machine's
+alert-driven `TRIAGING -> CANCELLED` edge from this document's Phase 1
+(ADR-0019).
+
 ## Phase 0 — Foundations (no services yet)
 
 - `libs/schemas`: Pydantic models for the domain entities, event envelope,

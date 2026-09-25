@@ -13,6 +13,7 @@ import random
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+
 from simulator.services.common.chaos import ChaosController
 from simulator.services.common.config import ServiceConfig
 from simulator.services.common.telemetry import get_logger, install_observability

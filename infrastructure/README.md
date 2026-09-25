@@ -35,6 +35,17 @@ See `docs/architecture/14-observability-and-chaos.md` for the full design.
   (ADR-0017), with a shared-secret Bearer token
   (`ALERTMANAGER_WEBHOOK_TOKEN`).
 
+## Phase 4
+
+- `tempo/tempo.yaml` -- single-binary Grafana Tempo (local filesystem, 24h
+  block retention). otel-collector now exports traces here instead of to
+  its `debug` exporter; Grafana gets a Tempo datasource with trace <-> log
+  links (Loki `derivedFields` on `trace_id`, Tempo `tracesToLogsV2`).
+- `evidence/service-catalog.json` -- evidence-service's authorization scope:
+  each service's direct dependencies (an incident may gather evidence about
+  its service and direct neighbors only) and the repository paths the Git
+  adapter may read for it.
+
 Kubernetes/kind manifests are reserved for a later phase (Phase 1 has no
 Kubernetes dependency at all -- see the Phase 1 brief's explicit
 exclusions).

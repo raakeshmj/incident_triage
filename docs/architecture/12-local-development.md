@@ -8,7 +8,12 @@ list) and three simulated `services/*` processes, at the repo root
 `infra/docker-compose/` / `services/*` paths sketched below (Phase 1
 already established the actual monorepo layout differently -- see the
 root README). See `docs/architecture/14-observability-and-chaos.md`. The
-`kind` layer and `evidence-service` record/replay modes remain unstarted.
+`kind` layer remains unstarted. Phase 4 added Tempo and evidence-service
+(`apps/evidence`, `make run-evidence`) in `mode=live` only; the
+`record`/`replay` modes below are not built yet -- though the evidence store
+already holds everything replay needs (every record's raw response,
+query spec and `content_hash`, retrievable per incident in deterministic
+order via `get_incident_evidence`).
 
 ## Goals
 

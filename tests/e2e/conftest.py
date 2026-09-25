@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import os
+import socket
+import threading
+import time
 from collections.abc import Iterator
 
+import httpx
 import pytest
+import uvicorn
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
@@ -39,6 +44,7 @@ def _clean_tables(engine: Engine) -> Iterator[None]:
             conn.execute(
                 text(
                     "TRUNCATE TABLE "
+                    "incident_core.evidence_refs, "
                     "incident_core.outbox_events, "
                     "incident_core.processed_commands, "
                     "incident_core.consumed_events, "
@@ -59,3 +65,33 @@ def client(engine: Engine) -> Iterator[TestClient]:
 
     with TestClient(app) as test_client:
         yield test_client
+
+
+API_PORT = 8000
+
+
+@pytest.fixture(scope="module")
+def api_server(engine: Engine) -> Iterator[None]:
+    """A real uvicorn server for the real app on :8000 -- the port
+    infrastructure/alertmanager/alertmanager.yml delivers to."""
+    with socket.socket() as probe:
+        if probe.connect_ex(("127.0.0.1", API_PORT)) == 0:
+            pytest.skip(f"port {API_PORT} is already in use (is `make run-api` running?)")
+
+    from apps.api.main import app
+
+    server = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=API_PORT, log_level="warning"))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        try:
+            httpx.get(f"http://localhost:{API_PORT}/healthz", timeout=1.0)
+            break
+        except httpx.HTTPError:
+            time.sleep(0.2)
+    else:
+        pytest.fail("API server did not start within 10s")
+    yield
+    server.should_exit = True
+    thread.join(timeout=10)

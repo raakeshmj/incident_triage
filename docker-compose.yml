@@ -114,6 +114,23 @@ services:
     ports:
       - "4317:4317"
       - "4318:4318"
+    depends_on:
+      - tempo
+
+  # Phase 4: trace storage. otel-collector -> tempo:4317 (OTLP/gRPC); query
+  # API on :3200 for Grafana and the evidence-service's Tempo adapter.
+  tempo:
+    image: grafana/tempo:2.6.1
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    # The image runs as uid 10001, which can't write a freshly-created named
+    # volume owned by root; running as root is the simplest fix for a
+    # local-dev-only container.
+    user: "0"
+    volumes:
+      - ./infrastructure/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "3200:3200"
 
   prometheus:
     image: prom/prometheus:v2.55.1
@@ -159,6 +176,7 @@ services:
     depends_on:
       - prometheus
       - loki
+      - tempo
 
   alertmanager:
     image: prom/alertmanager:v0.27.0
@@ -176,3 +194,4 @@ volumes:
   prometheus-data:
   loki-data:
   grafana-data:
+  tempo-data:

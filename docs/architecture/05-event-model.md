@@ -89,7 +89,9 @@ domain event owned by `incident-core`).
 | `AlertReceived` | **incident-core** (in the same transaction that persists the `Alert` and runs correlation) | alert id, fingerprint, source |
 | `AlertCorrelated` | incident-core | alert id, incident id, matched signals, score (Phase 2 — see ADR-0015; renamed from the Phase 1 placeholder `AlertLinked` now that the correlation decision is explainable and worth carrying in the event itself) |
 | `IncidentCreated` | incident-core | incident id, correlation key, initial severity, best candidate score + matched signals considered (Phase 2 addition — explains *why* no correlation happened, not just that it didn't) |
-| `IncidentStatusChanged` | incident-core | from, to, reason |
+| `IncidentStatusChanged` | incident-core | from, to, reason, version (Phase 4: emitted for `TRIAGING -> CANCELLED` with reason `all_linked_alerts_resolved`) |
+| `AlertResolved` | incident-core | alert id, incident id, firing alerts remaining (Phase 4, ADR-0019) |
+| `EvidenceRefRegistered` | incident-core | evidence id, incident id, type, source, content hash (Phase 4, ADR-0018) |
 | `IncidentSeverityChanged` | incident-core | old, new |
 | `InvestigationStarted` / `InvestigationCompleted` / `InvestigationFailed` | incident-core | investigation id, attempt number |
 | `HypothesisProposed` / `HypothesisSelected` | incident-core | hypothesis id, evidence ids |

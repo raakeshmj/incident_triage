@@ -146,3 +146,49 @@ rather than looping indefinitely or burning unbounded spend.
   incremented) rather than resuming the old one — this keeps each
   investigation's evidence set and token usage independently auditable and
   replayable.
+
+## Phase 4: tool contracts implemented (not connected to Claude)
+
+`packages/tools` implements the tool layer this document describes, below an
+agent that doesn't exist yet:
+
+```
+(future) agent -> ToolExecutor -> EvidenceService -> adapter -> telemetry backend
+```
+
+| Tool (as implemented) | Evidence operation | Notes vs. the inventory above |
+|---|---|---|
+| `get_metrics(metric, service?, start?, end?)` | `get_metric_window` | `metric` is a closed enum of allow-listed templates, not a PromQL `query` |
+| `get_service_health(service?, at?)` | `get_service_health` | new: point-in-time RED/USE health, classified with the alert-rule thresholds |
+| `get_logs(service?, start?, end?, severities?, trace_id?, request_id?, limit)` | `get_logs` | structured filters only; no free-text `filter` |
+| `get_trace(trace_id)` / `get_traces(service?, start?, end?, mode, min_duration_ms?, limit)` | `get_trace` / `get_traces` | split from `get_traces(service_or_trace_id)`; `mode` = recent/errors/slow |
+| `get_deploys(service?, start?, end?, limit)` | `get_recent_deployments` | |
+| `get_config_history(service?, start?, end?, limit)` | `get_config_changes` | |
+| `get_git_diff(service?, start?, end?, sha?, limit)` | `get_code_changes` | file list + diff summary (numstat), not the patch |
+| `get_recent_commits(service?, limit)` | `get_recent_commits` | new: with distance from the incident's start |
+| `search_historical_incidents(limit)` | `search_similar_incidents` | deterministic structured scoring; the query *is* the incident |
+| `submit_findings(...)` | -- (terminal) | schema only (`packages/tools/findings.py`), incl. the exactly-one-outcome validator |
+
+Contract details:
+
+- **Inputs** are strict (`extra="forbid"`); `incident_id` is never an
+  argument -- the orchestrator binds it in `ToolContext`. Services outside
+  the incident's dependency neighborhood, windows outside the bounds, and
+  malformed ids are rejected *before* any backend is queried.
+- **Outputs** are compact: `evidence_id`, `content_hash`, type/source,
+  `summary`, normalized `data`. Raw responses stay in the evidence store.
+- **Errors** are `ToolFailure{code, message, retryable}` with stable codes
+  (`invalid_argument`, `scope_violation`, `incident_not_found`,
+  `backend_unavailable`, `backend_timeout`, `budget_exceeded`,
+  `repeated_call`, `unknown_tool`, `terminal_tool`); validation messages
+  never echo the offending input, and backend error bodies never pass
+  through.
+- **Retries/budgets**: transient backend errors retried once with backoff;
+  20 calls per executor, 3 identical calls max (the "Budgets" table).
+  Wall-clock/token budgets belong to the agent loop and arrive with it.
+- **Transport**: in-process (`ToolExecutor`) or over evidence-service's
+  internal API (`POST /internal/v1/incidents/{id}/tools/{tool}`). Either
+  way the caller holds no telemetry credentials.
+- `tool_definitions()` emits name/description/JSON Schema for every tool --
+  the shape a model-facing tool list takes -- but nothing hands it to a
+  model yet.

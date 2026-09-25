@@ -101,7 +101,7 @@ make investigate-live           # ONE manual real-model run (scripts/manual_inve
 ```
 
 The worker calls the model configured by `INVESTIGATION_MODEL` (default
-`claude-sonnet-4-6`) and needs Anthropic credentials (`ANTHROPIC_API_KEY`).
+`claude-haiku-4-5`) and needs Anthropic credentials (`ANTHROPIC_API_KEY`, read from the environment or `.env`).
 Nothing in `make test` calls a model API; tests use
 `FakeInvestigationModel`. Host ports for Postgres, Redis, Grafana and the
 API are configurable (`POSTGRES_PORT`, `REDIS_PORT`, `GRAFANA_PORT`,

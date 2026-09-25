@@ -28,7 +28,7 @@ incident
 
 incident TRIAGING (debounce elapsed) -> INVESTIGATING -> InvestigationStarted
     -> investigation worker -> InvestigationEngine (packages/agents)
-    -> model (INVESTIGATION_MODEL, default claude-sonnet-4-6) <-> read-only tools
+    -> model (INVESTIGATION_MODEL, default claude-haiku-4-5) <-> read-only tools
     -> hypotheses validated + persisted by incident-core, every step checkpointed
     -> deterministic stopping criteria -> RCA_READY (evidence-backed RCA) | ESCALATED
 ```
@@ -94,10 +94,14 @@ implements.
 
 ## Quickstart
 
-Requires Docker, Python 3.11+.
+Requires Docker, Python 3.11+. Every entrypoint reads `.env` itself
+(pydantic-settings / python-dotenv) and every `make` target exports it, so
+`KEY=value` lines there are all the configuration needed.
 
 ```bash
-cp .env.example .env
+python3 -m venv .venv             # once
+source .venv/bin/activate         # every new shell
+cp .env.example .env              # then add ANTHROPIC_API_KEY=... for Phase 5/6 live runs
 make install          # pip install -e ".[dev]"
 make infra-up         # docker compose up -d (Postgres + Redis), waits for both
 make migrate          # both schemas: incident_core, then evidence (its own role)
@@ -218,7 +222,7 @@ python -m simulator.chaos.cli stop --service checkout-service   # records the ro
 ```bash
 make infra-up-full && make migrate
 make run-api                    # Alertmanager delivers here
-export ANTHROPIC_API_KEY=...    # the worker calls the configured model
+# ANTHROPIC_API_KEY in .env (or the environment); never commit it
 make run-investigation-worker   # scheduler + InvestigationStarted consumer + resume sweep
 python -m simulator.chaos.cli start bad-deployment --service checkout-service
 # ~45s: incident TRIAGING; +60s debounce: INVESTIGATING; then RCA_READY or ESCALATED

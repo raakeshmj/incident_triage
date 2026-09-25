@@ -3,8 +3,8 @@
 spends real API tokens. Run it by hand:
 
     make infra-up-full && make migrate
-    export ANTHROPIC_API_KEY=...            # or any credential the SDK resolves
-    python scripts/manual_investigation.py  # uses INVESTIGATION_MODEL (default claude-sonnet-4-6)
+    # ANTHROPIC_API_KEY in .env (or exported); never printed
+    python scripts/manual_investigation.py  # uses INVESTIGATION_MODEL (default claude-haiku-4-5)
 
 What it does, end to end on the live stack:
  1. starts the deterministic `bad-deployment` chaos scenario on checkout-service;
@@ -45,19 +45,17 @@ os.chdir(ROOT)
 load_dotenv(ROOT / ".env")
 
 from apps.worker.investigation_main import build_runtime  # noqa: E402
-from packages.agents.config import InvestigationSettings, resolve_model_spec  # noqa: E402
+from packages.agents.config import (  # noqa: E402
+    AnthropicCredentials,
+    InvestigationSettings,
+    resolve_model_spec,
+)
 from packages.incident.db.base import make_engine, make_session_factory  # noqa: E402
 from packages.incident.db.models import IncidentRow  # noqa: E402
 from simulator.changes.registry import ChangeRegistry  # noqa: E402
 from simulator.chaos import cli as chaos  # noqa: E402
 
 SERVICE = "checkout-service"
-
-
-def _credentials_present() -> bool:
-    if os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"):
-        return True
-    return (Path.home() / ".config" / "anthropic").exists()
 
 
 def _serve_api(port: int) -> uvicorn.Server:
@@ -89,8 +87,8 @@ def main() -> int:
     if spec.model.startswith("claude-opus") and not args.allow_opus:
         print(f"refusing to run the manual investigation on {spec.model}; see --help")
         return 2
-    if not _credentials_present():
-        print("no Anthropic credentials found (ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN / profile)")
+    if AnthropicCredentials().anthropic_api_key is None:
+        print("ANTHROPIC_API_KEY is not set (environment or .env)")
         return 2
     print(
         f"runtime model: {spec.provider}/{spec.model} thinking={spec.thinking} effort={spec.effort}"

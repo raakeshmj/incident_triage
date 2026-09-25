@@ -175,6 +175,22 @@ def test_api_errors_are_classified_retryable_or_terminal(error, retryable):
     assert "boom" not in str(excinfo.value)  # our summary, not the error body
 
 
+def test_the_api_error_type_and_message_reach_the_trace_bounded():
+    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+    response = httpx2.Response(400, request=request, headers={"request-id": "req_9"})
+    body = {
+        "type": "error",
+        "error": {"type": "invalid_request_error", "message": "credit balance too low" + "x" * 500},
+    }
+    error = anthropic.BadRequestError("Error code: 400", response=response, body=body)
+    model = ClaudeInvestigationModel(SPEC, client=StubClient(error=error))  # type: ignore[arg-type]
+    with pytest.raises(ModelError) as excinfo:
+        model.decide(REQUEST)
+    message = str(excinfo.value)
+    assert "req_9" in message and "invalid_request_error: credit balance too low" in message
+    assert len(message) <= 300
+
+
 def test_refusal_is_terminal():
     client = StubClient(_message([], "refusal"))
     with pytest.raises(ModelError) as excinfo:

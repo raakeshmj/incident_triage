@@ -9,15 +9,20 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from packages.agents.config import ModelConfigError, ModelSpec
+from packages.agents.config import AnthropicCredentials, ModelConfigError, ModelSpec
 from packages.agents.model import InvestigationModel
 
 ModelFactory = Callable[[ModelSpec], InvestigationModel]
 
 
-def build_investigation_model(spec: ModelSpec) -> InvestigationModel:
+def build_investigation_model(
+    spec: ModelSpec, credentials: AnthropicCredentials | None = None
+) -> InvestigationModel:
     if spec.provider == "anthropic":
         from packages.agents.claude import ClaudeInvestigationModel
 
-        return ClaudeInvestigationModel(spec)
+        key = (credentials or AnthropicCredentials()).anthropic_api_key
+        if key is None:
+            raise ModelConfigError("ANTHROPIC_API_KEY is not set (process environment or .env)")
+        return ClaudeInvestigationModel(spec, api_key=key.get_secret_value())
     raise ModelConfigError(f"unknown investigation model provider {spec.provider!r}")

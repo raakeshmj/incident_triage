@@ -50,3 +50,12 @@ Haiku 4.5 rejects `effort`, some models always think, effort levels differ.
   proves the configured name reaches the factory and is stamped on the row.
 - New models need a `MODEL_PROFILES` entry to use thinking/effort; without
   one they still run, conservatively.
+
+## Amendment (Phase 6)
+
+The default runtime model is now `claude-haiku-4-5` — the initial,
+inexpensive runtime model; real investigations and live evaluations run on
+it. Changing it remains a configuration change. Comparing models is not a
+project requirement and no benchmarking infrastructure exists. The API key
+is resolved by `AnthropicCredentials` (environment or `.env`, `SecretStr`),
+separately from the persisted `ModelSpec`, so it never reaches a trace.

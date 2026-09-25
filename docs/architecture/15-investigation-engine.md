@@ -2,7 +2,7 @@
 
 The first component in which a model takes part. An incident that has sat in
 `TRIAGING` past its debounce window becomes an **Investigation**: a bounded,
-hypothesis-driven loop in which a model (default `claude-sonnet-4-6`) asks for
+hypothesis-driven loop in which a model (default `claude-haiku-4-5`) asks for
 evidence through read-only tools, proposes and revises competing hypotheses,
 and either lands an evidence-backed RCA (`RCA_READY`) or escalates to a human
 (`ESCALATED`). Nothing here executes, proposes or approves remediation.

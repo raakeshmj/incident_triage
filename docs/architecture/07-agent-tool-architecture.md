@@ -223,4 +223,4 @@ Where it departs from the sections above (ADR-0020, ADR-0021):
   | REJECTED | SELECTED` (mapping in ADR-0020).
 - **Model**: behind the `InvestigationModel` Protocol; the Claude adapter is
   the only SDK importer; the model is chosen by `INVESTIGATION_MODEL`
-  (default `claude-sonnet-4-6`) and pinned per investigation.
+  (default `claude-haiku-4-5`) and pinned per investigation.

@@ -46,7 +46,7 @@ Build session "Phase 5" delivers this document's **Phase 5 investigation
 agent** minus the golden dataset / eval harness (deliberately deferred; the
 persisted trace is the hook it will replay): a bounded, resumable,
 hypothesis-driven loop with Claude behind a model abstraction
-(`INVESTIGATION_MODEL`, default `claude-sonnet-4-6`), incident-core
+(`INVESTIGATION_MODEL`, default `claude-haiku-4-5` since Phase 6), incident-core
 validation of every hypothesis change and conclusion, deterministic stopping
 criteria, `TRIAGING → INVESTIGATING → RCA_READY | ESCALATED` driven by a
 debounce scheduler and events. Departures from §07 are in ADR-0020/0021; no

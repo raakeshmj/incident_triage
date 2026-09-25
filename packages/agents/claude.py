@@ -92,11 +92,17 @@ def render_messages(request: DecisionRequest) -> list[dict[str, Any]]:
 class ClaudeInvestigationModel:
     provider = "anthropic"
 
-    def __init__(self, spec: ModelSpec, client: anthropic.Anthropic | None = None) -> None:
+    def __init__(
+        self,
+        spec: ModelSpec,
+        client: anthropic.Anthropic | None = None,
+        *,
+        api_key: str | None = None,
+    ) -> None:
         self.spec = spec
         self.model_name = spec.model
         self._client = client or anthropic.Anthropic(
-            timeout=spec.timeout_seconds, max_retries=spec.max_retries
+            api_key=api_key, timeout=spec.timeout_seconds, max_retries=spec.max_retries
         )
 
     def build_request(self, request: DecisionRequest) -> dict[str, Any]:
@@ -180,6 +186,14 @@ def _arguments(value: Any) -> dict[str, Any]:
 
 
 def _message(exc: Exception) -> str:
-    # Our own summary, bounded: the error body never goes to logs verbatim.
+    """Bounded summary for the trace: class, request id, and the API's own
+    error type + message (e.g. an invalid parameter, or a billing problem) --
+    without it a 400 is undiagnosable. Recorded on the MODEL_ERROR step,
+    not logged."""
     request_id = getattr(getattr(exc, "response", None), "headers", {}).get("request-id", "")
-    return f"{type(exc).__name__} request_id={request_id}"[:300]
+    summary = f"{type(exc).__name__} request_id={request_id}"
+    body = getattr(exc, "body", None)
+    error = body.get("error") if isinstance(body, dict) else None
+    if isinstance(error, dict):
+        summary += f" {error.get('type', '')}: {str(error.get('message', ''))[:200]}"
+    return summary[:300]

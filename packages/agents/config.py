@@ -3,8 +3,8 @@ which model runs and how it's called (ADR-0021).
 
 Changing the runtime model is configuration, not code:
 
-    INVESTIGATION_MODEL=claude-sonnet-4-6    # default
-    INVESTIGATION_MODEL=claude-haiku-4-5
+    INVESTIGATION_MODEL=claude-haiku-4-5     # default: the initial, inexpensive runtime model
+    INVESTIGATION_MODEL=claude-sonnet-4-6
     INVESTIGATION_MODEL=claude-opus-5-5
 
 Per-model API differences (whether adaptive thinking exists, which effort
@@ -18,12 +18,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from packages.domain.investigation import InvestigationBudget, StoppingCriteria
 
-DEFAULT_INVESTIGATION_MODEL = "claude-sonnet-4-6"
+DEFAULT_INVESTIGATION_MODEL = "claude-haiku-4-5"
 PROMPT_VERSION = "investigation-v1"
 
 _EFFORTS_46 = frozenset({"low", "medium", "high", "max"})
@@ -120,6 +120,15 @@ class ModelSpec:
     @classmethod
     def from_persisted(cls, provider: str, model: str, settings: dict[str, Any]) -> ModelSpec:
         return cls(provider=provider, model=model, **settings)
+
+
+class AnthropicCredentials(BaseSettings):
+    """The API key, from the process environment or `.env`. Kept apart from
+    `ModelSpec` so it is never persisted, logged or part of a trace."""
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    anthropic_api_key: SecretStr | None = None
 
 
 class ModelConfigError(ValueError):

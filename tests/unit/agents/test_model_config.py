@@ -9,6 +9,7 @@ import pytest
 from packages.agents.claude import ClaudeInvestigationModel
 from packages.agents.config import (
     DEFAULT_INVESTIGATION_MODEL,
+    AnthropicCredentials,
     InvestigationSettings,
     ModelConfigError,
     ModelSpec,
@@ -20,22 +21,47 @@ from packages.agents.model import ContextEntry, DecisionRequest
 REQUEST = DecisionRequest(system_prompt="s", tools=[], transcript=[ContextEntry(text="ctx")])
 
 
+@pytest.fixture(autouse=True)
+def _fake_key(monkeypatch):
+    # the adapter is constructed but never called; never the real key from .env
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-real")
+
+
 def _settings(monkeypatch, **env: str) -> InvestigationSettings:
     for key in list(env):
         monkeypatch.setenv(key, env[key])
     return InvestigationSettings(_env_file=None)  # type: ignore[call-arg]
 
 
-def test_default_runtime_model_is_sonnet_4_6(monkeypatch):
+def test_default_runtime_model_is_haiku_4_5(monkeypatch):
     monkeypatch.delenv("INVESTIGATION_MODEL", raising=False)
     spec = resolve_model_spec(_settings(monkeypatch))
-    assert DEFAULT_INVESTIGATION_MODEL == "claude-sonnet-4-6"
+    assert DEFAULT_INVESTIGATION_MODEL == "claude-haiku-4-5"
+    # Haiku 4.5 takes no adaptive thinking and rejects `effort`
     assert (spec.provider, spec.model, spec.thinking, spec.effort) == (
         "anthropic",
-        "claude-sonnet-4-6",
-        "adaptive",
-        "medium",
+        "claude-haiku-4-5",
+        "none",
+        None,
     )
+
+
+def test_a_missing_api_key_is_a_configuration_error(monkeypatch):
+    spec = resolve_model_spec(_settings(monkeypatch))
+    with pytest.raises(ModelConfigError, match="ANTHROPIC_API_KEY"):
+        build_investigation_model(
+            spec, AnthropicCredentials(_env_file=None, anthropic_api_key=None)
+        )  # type: ignore[call-arg]
+
+
+def test_the_api_key_is_read_from_the_env_file(tmp_path, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY")
+    env = tmp_path / ".env"
+    env.write_text("ANTHROPIC_API_KEY = from-dotenv\n")  # spaces around '=' too
+    creds = AnthropicCredentials(_env_file=env)  # type: ignore[call-arg]
+    assert creds.anthropic_api_key is not None
+    assert creds.anthropic_api_key.get_secret_value() == "from-dotenv"
+    assert "from-dotenv" not in repr(creds)  # never printable
 
 
 @pytest.mark.parametrize(

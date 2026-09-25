@@ -1,6 +1,6 @@
 # apps/worker
 
-Two entrypoints:
+Three entrypoints:
 
 - **`main.py`** — the transactional outbox relay. Polls
   `incident_core.outbox_events` for rows with `published_at IS NULL`,
@@ -18,6 +18,15 @@ Two entrypoints:
   stream in one process with a short per-shard block time (see the
   module's `build_consumers` docstring for why).
 
+- **`investigation_main.py`** (Phase 5) — the investigation worker. Each
+  loop: the debounce scheduler (`TRIAGING` incidents past
+  `INVESTIGATION_DEBOUNCE_SECONDS` with a firing alert →
+  `request_investigation`), the `InvestigationStarted` consumer (group
+  `cg:investigation-worker`, `consumed_events` dedup) that runs the engine,
+  and a resume sweep for investigations whose lease expired (crashed
+  worker, lost event). Calls the model configured by `INVESTIGATION_MODEL`.
+  See `docs/architecture/15-investigation-engine.md`.
+
 See `docs/adr/0014-redis-streams-transport.md` for the stream
 sharding/consumer-group/dead-letter design both entrypoints share.
 
@@ -26,6 +35,7 @@ sharding/consumer-group/dead-letter design both entrypoints share.
 ```
 make run-worker      # the outbox relay
 make run-consumer    # the metrics/audit consumer
+make run-investigation-worker   # Phase 5 investigations (needs ANTHROPIC_API_KEY)
 ```
 
 Both require `make infra-up` and `make migrate` first.

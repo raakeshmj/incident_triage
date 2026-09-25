@@ -62,3 +62,30 @@ def test_evidence_service_never_touches_incident_core_storage():
 def test_alert_ingestion_still_has_no_database_access():
     names = _imports("apps/api/routers")["apps/api/routers/alerts.py"]
     assert not {n for n in names if n.startswith(("packages.incident.db", "sqlalchemy"))}
+
+
+def test_investigation_agent_has_no_path_to_state_backends_or_shell():
+    """The agent package reaches incident state only through incident-core's
+    command interface and telemetry only through the tool layer."""
+    forbidden = (
+        "sqlalchemy",
+        "psycopg",
+        "redis",
+        "httpx",
+        "subprocess",
+        "packages.incident",
+        "packages.evidence.adapters",
+        "packages.evidence.db",
+        "packages.evidence.repository",
+    )
+    assert _violations("packages/agents", forbidden) == []
+
+
+def test_only_the_claude_adapter_imports_the_model_sdk():
+    importers = sorted(
+        file
+        for package in ("apps", "packages")
+        for file, names in _imports(package).items()
+        if any(n == "anthropic" or n.startswith("anthropic.") for n in names)
+    )
+    assert importers == ["packages/agents/claude.py"]

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import tempfile
 import time
 import uuid
 from collections.abc import Iterator
@@ -35,6 +36,20 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 ALERTMANAGER_CONFIG = REPO_ROOT / "infrastructure" / "alertmanager" / "alertmanager.yml"
 ALERTMANAGER_PORT = 9093
 CONTAINER_NAME = "ii-e2e-alertmanager-test"
+
+
+def _rendered_config() -> Path:
+    """The committed config, pointed at this host's API_PORT (the same
+    substitution docker-compose's alertmanager entrypoint does)."""
+    from tests.e2e.conftest import API_PORT
+
+    rendered = Path(tempfile.mkdtemp()) / "alertmanager.yml"
+    rendered.write_text(
+        ALERTMANAGER_CONFIG.read_text().replace(
+            "host.docker.internal:8000", f"host.docker.internal:{API_PORT}"
+        )
+    )
+    return rendered
 
 
 def _docker_available() -> bool:
@@ -64,7 +79,7 @@ def alertmanager_container() -> Iterator[None]:
             "-p",
             f"{ALERTMANAGER_PORT}:9093",
             "-v",
-            f"{ALERTMANAGER_CONFIG}:/etc/alertmanager/alertmanager.yml:ro",
+            f"{_rendered_config()}:/etc/alertmanager/alertmanager.yml:ro",
             "prom/alertmanager:v0.27.0",
         ],
         capture_output=True,

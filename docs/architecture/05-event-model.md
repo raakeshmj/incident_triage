@@ -196,3 +196,20 @@ Postgres already holds current state transactionally consistent with the
 event that describes the change. The `events` table is for audit, replay,
 and downstream fan-out, not for reconstructing aggregate state on every
 read. (Reassessed in ADR-0002.)
+
+## Phase 5: investigation events
+
+Written by incident-core in the same transaction as the state change, via
+the outbox (aggregate type `Investigation`, aggregate id = investigation id):
+
+| Event | When | Payload |
+|---|---|---|
+| `InvestigationStarted` | `request_investigation` (incident `TRIAGING → INVESTIGATING`, alongside `IncidentStatusChanged`) | `investigation_id`, `incident_id`, `attempt_number`, `model_provider`, `model_name` |
+| `InvestigationCompleted` | conclusion accepted (incident → `RCA_READY`) | `investigation_id`, `incident_id`, `selected_hypothesis_id`, `rca_report_id` |
+| `InvestigationFailed` | escalated or failed (incident → `ESCALATED`) | `investigation_id`, `incident_id`, `outcome` (`ESCALATED`/`FAILED`), `reason_code` |
+
+The investigation worker consumes `InvestigationStarted` in consumer group
+`cg:investigation-worker` with the `consumed_events` ledger; a redelivered
+event finds the investigation already claimed or finished and does nothing.
+The event is the fast path only: the worker's resume sweep picks up any
+investigation whose event was lost or whose worker died.

@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import datetime
 import uuid
+from decimal import Decimal
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -156,5 +157,139 @@ class EvidenceRefRow(Base):
     source_system: Mapped[str] = mapped_column(String, nullable=False)
     collected_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     registered_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+# --- Phase 5: investigations (ADR-0020) ---------------------------------------
+
+
+class InvestigationRow(Base):
+    """One attempt at explaining one incident. Written only by incident-core;
+    the investigation worker changes it exclusively through commands."""
+
+    __tablename__ = "investigations"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    incident_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.incidents.id"), nullable=False
+    )
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    model_provider: Mapped[str] = mapped_column(String, nullable=False)
+    model_name: Mapped[str] = mapped_column(String, nullable=False)
+    model_config: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    budget: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    iteration_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tool_call_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    evidence_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    input_tokens: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    cache_read_tokens: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    cache_creation_tokens: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    last_action: Mapped[str | None] = mapped_column(String, nullable=True)
+    failure_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    escalation_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    inconclusive_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    selected_hypothesis_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    final_result: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    lease_owner: Mapped[str | None] = mapped_column(String, nullable=True)
+    lease_expires_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    started_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class HypothesisRow(Base):
+    __tablename__ = "hypotheses"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    investigation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.investigations.id"), nullable=False
+    )
+    key: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    confidence: Mapped[Decimal | None] = mapped_column(Numeric(3, 2), nullable=True)
+    missing_evidence: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class HypothesisEvidenceLinkRow(Base):
+    """FK-enforced citation: `evidence_id` must be a registered evidence_ref."""
+
+    __tablename__ = "hypothesis_evidence_links"
+    __table_args__ = {"schema": SCHEMA}
+
+    hypothesis_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.hypotheses.id"), primary_key=True
+    )
+    evidence_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.evidence_refs.id"), primary_key=True
+    )
+    relation: Mapped[str] = mapped_column(String, nullable=False)  # supports | contradicts
+    linked_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class InvestigationStepRow(Base):
+    """The append-only investigation trace (immutable via trigger)."""
+
+    __tablename__ = "investigation_steps"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    investigation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.investigations.id"), nullable=False
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    iteration: Mapped[int] = mapped_column(Integer, nullable=False)
+    kind: Mapped[str] = mapped_column(String, nullable=False)
+    call_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class RcaReportRow(Base):
+    __tablename__ = "rca_reports"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    incident_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.incidents.id"), nullable=False
+    )
+    investigation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.investigations.id"), nullable=False
+    )
+    root_cause_hypothesis_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.hypotheses.id"), nullable=False
+    )
+    report: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    summary: Mapped[str] = mapped_column(String, nullable=False)
+    generated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

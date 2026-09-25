@@ -102,3 +102,42 @@ class EvidenceRefRegisteredPayload(BaseModel):
     evidence_type: str
     source_system: str
     content_hash: str
+
+
+# --- Phase 5: investigations --------------------------------------------------------
+
+EVENT_TYPE_INVESTIGATION_STARTED = "InvestigationStarted"
+EVENT_TYPE_INVESTIGATION_COMPLETED = "InvestigationCompleted"
+EVENT_TYPE_INVESTIGATION_FAILED = "InvestigationFailed"
+AGGREGATE_TYPE_INVESTIGATION = "Investigation"
+
+
+class InvestigationStartedPayload(BaseModel):
+    model_config = ConfigDict(frozen=True, protected_namespaces=())
+
+    investigation_id: uuid.UUID
+    incident_id: uuid.UUID
+    attempt_number: int
+    model_provider: str
+    model_name: str
+
+
+class InvestigationCompletedPayload(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    investigation_id: uuid.UUID
+    incident_id: uuid.UUID
+    selected_hypothesis_id: uuid.UUID
+    rca_report_id: uuid.UUID
+
+
+class InvestigationFailedPayload(BaseModel):
+    """Both `FAILED` (technical) and `ESCALATED` (inconclusive / budget)
+    outcomes: either way no usable root cause, and the incident escalates."""
+
+    model_config = ConfigDict(frozen=True)
+
+    investigation_id: uuid.UUID
+    incident_id: uuid.UUID
+    outcome: str
+    reason_code: str

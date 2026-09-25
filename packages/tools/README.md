@@ -17,11 +17,13 @@ agent tool call -> ToolExecutor -> EvidenceService -> adapter -> telemetry backe
   `get_trace`, `get_traces`, `get_deploys`, `get_config_history`,
   `get_git_diff`, `get_recent_commits`, `search_historical_incidents`; each
   mapped onto one evidence-service operation. `tool_definitions()` emits
-  name/description/JSON Schema for all of them plus `submit_findings`.
+  name/description/JSON Schema for all of them plus the Phase 5 decision
+  tools (`update_hypotheses`, `conclude_investigation`,
+  `declare_inconclusive`), which the executor refuses (`decision_tool`) --
+  the investigation engine routes them to incident-core instead.
 - `executor.py` -- validation, retry of transient backend errors, per
   investigation budgets (total calls, identical-call loop detection).
-- `findings.py` -- `submit_findings`' schema (`InvestigationResult`), with the
-  exactly-one-of `selected_root_cause_index` / `inconclusive_reason` rule.
+- (`findings.py` / `submit_findings` was retired in Phase 5 -- ADR-0020.)
 
 No module here imports an HTTP/Redis/DB client, an adapter, or incident-core
 (`tests/unit/test_boundaries.py`): the tool layer's only path to telemetry is

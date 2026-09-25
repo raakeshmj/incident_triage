@@ -1,6 +1,6 @@
 # Incident Intelligence — Design Documentation
 
-Status: **Architecture foundation, pre-implementation.**
+Status: **Phases 1-5 implemented** (see [implementation-order.md](implementation-order.md)).
 
 ## Reading order
 
@@ -18,6 +18,7 @@ Status: **Architecture foundation, pre-implementation.**
 12. [architecture/12-local-development.md](architecture/12-local-development.md) — dev environment, fixtures
 13. [architecture/13-security-boundaries.md](architecture/13-security-boundaries.md) — trust zones, RBAC, secrets
 14. [architecture/14-observability-and-chaos.md](architecture/14-observability-and-chaos.md) — Phase 3's simulated services, telemetry, alerting, chaos scenarios
+15. [architecture/15-investigation-engine.md](architecture/15-investigation-engine.md) — Phase 5's bounded, resumable, evidence-grounded investigation loop
 
 Decisions: [adr/](adr/) — one ADR per significant, hard-to-reverse choice.
 

@@ -92,3 +92,18 @@ knowledge about the right sequence of commands.
 - Secrets even in dev come from a local `.env` that's gitignored and
   documented via `.env.example`, not hardcoded into compose files, so the
   habit of "secrets never live in source" holds from day one.
+
+## Phase 5: running investigations locally
+
+```
+make run-investigation-worker   # scheduler + InvestigationStarted consumer + resume sweep
+make investigate-live           # ONE manual real-model run (scripts/manual_investigation.py)
+```
+
+The worker calls the model configured by `INVESTIGATION_MODEL` (default
+`claude-sonnet-4-6`) and needs Anthropic credentials (`ANTHROPIC_API_KEY`).
+Nothing in `make test` calls a model API; tests use
+`FakeInvestigationModel`. Host ports for Postgres, Redis, Grafana and the
+API are configurable (`POSTGRES_PORT`, `REDIS_PORT`, `GRAFANA_PORT`,
+`API_PORT`) for machines where the defaults are taken; Alertmanager's
+webhook target follows `ALERTMANAGER_WEBHOOK_URL`.

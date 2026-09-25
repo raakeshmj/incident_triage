@@ -2,10 +2,11 @@
 
 Autonomous Production Incident Triage & Response platform.
 
-**Status: Phases 1-4 implemented.** A working vertical slice with a
+**Status: Phases 1-5 implemented.** A working vertical slice with a
 production-shaped event transport, a real correlation engine, a realistic
-local production environment feeding it real alerts, and (Phase 4) the
-trusted evidence and investigation substrate a future agent will use:
+local production environment feeding it real alerts, (Phase 4) the trusted
+evidence and investigation substrate, and (Phase 5) a bounded, read-only,
+evidence-grounded investigation agent:
 
 ```
 checkout/payment/inventory services (simulated, chaos-injectable)
@@ -24,6 +25,12 @@ incident
     -> adapter -> Prometheus | Loki | Tempo | deployments | config | Git | incident history
     -> immutable, content-hashed EvidenceRecord + incident-core EvidenceRef
     -> compact result carrying an evidence_id
+
+incident TRIAGING (debounce elapsed) -> INVESTIGATING -> InvestigationStarted
+    -> investigation worker -> InvestigationEngine (packages/agents)
+    -> model (INVESTIGATION_MODEL, default claude-sonnet-4-6) <-> read-only tools
+    -> hypotheses validated + persisted by incident-core, every step checkpointed
+    -> deterministic stopping criteria -> RCA_READY (evidence-backed RCA) | ESCALATED
 ```
 
 See [`docs/`](docs/) for the full architecture,
@@ -36,9 +43,11 @@ rules, and chaos scenarios, and
 [`docs/architecture/08-evidence-model.md`](docs/architecture/08-evidence-model.md)
 / [`07-agent-tool-architecture.md`](docs/architecture/07-agent-tool-architecture.md)
 (+ ADR-0018/ADR-0019) for Phase 4's evidence service, tool contracts, and
-alert resolution. Nothing beyond this scope is implemented yet: no
-Claude/LLM agent, no policy engine, no remediation, no Kubernetes, no
-Incident Intelligence dashboard.
+alert resolution, and
+[`docs/architecture/15-investigation-engine.md`](docs/architecture/15-investigation-engine.md)
+(+ ADR-0020/ADR-0021) for Phase 5's investigation engine. Nothing beyond
+this scope is implemented yet: no policy engine, no remediation, no
+Kubernetes, no Incident Intelligence dashboard, no eval harness.
 
 ## Repository layout
 
@@ -46,7 +55,8 @@ Incident Intelligence dashboard.
 apps/
   api/          FastAPI process: alert-ingestion's POST /api/v1/alerts
                 and incident-core's GET /api/v1/incidents/{id}
-  worker/       the transactional outbox relay (Postgres -> Redis Stream)
+  worker/       the transactional outbox relay (Postgres -> Redis Stream),
+                the metrics consumer, and the investigation worker (Phase 5)
   evidence/     evidence-service's internal API: tools + evidence replay/audit (Phase 4)
   dashboard/    reserved for the Next.js UI (not implemented yet)
 
@@ -60,7 +70,8 @@ packages/
   telemetry/    structured logging, request context, tracing + metrics stubs
   evidence/     evidence-service: adapters, immutable evidence store, scope (Phase 4)
   tools/        investigation tool contracts over evidence-service (Phase 4)
-  agents/       reserved (Phase 5 -- investigation agent)
+  agents/       the investigation engine, model abstraction, Claude adapter,
+                read-only toolset, prompts (Phase 5)
   policy/       reserved (Phase 3 -- policy engine)
   evaluation/   reserved (Phase 5+ -- offline eval harness)
 
@@ -72,7 +83,8 @@ simulator/      send_alert.py (synthetic alert CLI), services/ (3
                 chaos/ (7 chaos scenarios + CLI), changes/ (simulated
                 deployment + config registries, Phase 4), scenarios.md
 evals/          reserved for the eval harness's golden dataset
-scripts/        dev-workflow helpers (wait_for_services.py)
+scripts/        dev-workflow helpers (wait_for_services.py) and the manual
+                real-model investigation (manual_investigation.py)
 tests/          unit / integration / e2e (see tests/README.md)
 ```
 
@@ -201,6 +213,28 @@ python -m simulator.chaos.cli stop --service checkout-service   # records the ro
 
 `GET localhost:8010/internal/v1/tools` lists every tool's JSON Schema.
 
+## Phase 5: investigations
+
+```bash
+make infra-up-full && make migrate
+make run-api                    # Alertmanager delivers here
+export ANTHROPIC_API_KEY=...    # the worker calls the configured model
+make run-investigation-worker   # scheduler + InvestigationStarted consumer + resume sweep
+python -m simulator.chaos.cli start bad-deployment --service checkout-service
+# ~45s: incident TRIAGING; +60s debounce: INVESTIGATING; then RCA_READY or ESCALATED
+```
+
+The runtime model is configuration: `INVESTIGATION_MODEL=claude-haiku-4-5`
+(or any id; see `packages/agents/config.py`'s `MODEL_PROFILES`) with no code
+change. Each investigation records the model it used, every model turn, tool
+call, hypothesis change and the final RCA in `incident_core`
+(`investigation_steps`, `hypotheses`, `rca_reports`).
+
+`make investigate-live` runs the single manual real-model investigation
+(`scripts/manual_investigation.py`) of a live bad-deployment incident and
+writes the full trace to `investigation-traces/`. It spends real tokens and
+is never part of `make test`, which calls no model API.
+
 ## Tests
 
 ```bash
@@ -245,5 +279,6 @@ make infra-down   # docker compose down -v (drops the Postgres volume too)
 Claude reasons and proposes. Deterministic code (state machine, policy
 engine, action catalog) decides, enforces, and executes. Every claim the
 model makes about the world must be backed by a stored, replayable
-evidence record — never by the model's own assertion. Phase 1 has no LLM
-in it at all yet; this rule shapes every phase from here on.
+evidence record — never by the model's own assertion. Phase 5's agent is read-only:
+it can gather evidence and propose hypotheses and conclusions, and
+incident-core decides whether they stand.

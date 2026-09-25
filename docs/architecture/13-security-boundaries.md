@@ -81,7 +81,8 @@ the model's context via evidence. Mitigations:
 1. The system prompt explicitly frames all tool results as data to reason
    about, never as instructions to follow (`07-agent-tool-architecture.md`).
 2. The model's only channel of effect on the world is the strictly-typed
-   `submit_findings` schema — even a fully "convinced" model can only
+   decision tools (`update_hypotheses`, `conclude_investigation`,
+   `declare_inconclusive` since Phase 5; originally `submit_findings`) — even a fully "convinced" model can only
    produce a `RemediationProposalOut` referencing an existing
    `action_catalog_id`; it cannot emit a shell command, a URL to fetch, or
    arbitrary instructions that any downstream component would execute.
@@ -120,3 +121,26 @@ the model's context via evidence. Mitigations:
 - `policy_decisions` and `executions` are the two tables most likely to
   matter for a security or compliance review; both are immutable and
   timestamped with the exact policy/action-catalog version used.
+
+## Phase 5: the investigation agent's trust boundary
+
+- The agent is read-only: its tools are the evidence tools and three
+  decision tools whose effects incident-core validates. No tool mutates
+  production, and there is no DB/Redis/shell/HTTP/Git/Kubernetes tool.
+- Authorization is outside the model: `incident_id`/`investigation_id` are
+  bound in `ToolContext` by the engine, never accepted as arguments; scope
+  (the incident's service neighbourhood, time bounds) is checked by
+  evidence-service; the tool list is fixed in code and cannot be extended
+  by model output.
+- The incident context is built by the application from stored rows;
+  alert text is sanitized and presented as data. Model output never feeds
+  back into the context except as its own prior turns.
+- Evidence ids the model cites must be ones it was shown for this
+  incident; anything else is rejected and recorded.
+- `ANTHROPIC_API_KEY` is read only by the SDK in the worker; it is never
+  logged, never in a tool result, never persisted. Logs carry counts,
+  names and codes, not prompts, payloads or model text (those live in the
+  access-controlled `investigation_steps` table).
+- Boundary tests: `packages/agents` imports no DB driver, Redis, HTTP
+  client or `subprocess`; only `packages/agents/claude.py` imports
+  `anthropic`.

@@ -8,8 +8,9 @@
 - Budgets (07, "Budgets"): a cap on total calls, and on identical calls
   (loop detection) -- exceeded budgets are tool errors, which is what lets
   a confused model degrade to "inconclusive" rather than loop.
-- `submit_findings` is terminal: it is validated here, never executed
-  against the evidence service.
+- Decision tools (`update_hypotheses`, `conclude_investigation`,
+  `declare_inconclusive`) are never executed here: the investigation engine
+  and incident-core handle them.
 """
 
 from __future__ import annotations
@@ -33,8 +34,7 @@ from packages.tools.contracts import (
     ToolResult,
     ToolSuccess,
 )
-from packages.tools.findings import InvestigationResult
-from packages.tools.registry import TERMINAL_TOOL, TOOLS
+from packages.tools.registry import DECISION_TOOL_SPECS, TOOLS
 
 log = get_logger(__name__)
 metrics = get_metrics()
@@ -54,12 +54,18 @@ class ToolExecutor:
         service: EvidenceService,
         context: ToolContext,
         budget: ToolBudget | None = None,
+        prior_calls: list[tuple[str, dict[str, Any]]] | None = None,
     ) -> None:
+        """`prior_calls` seeds the budgets from calls already made in this
+        investigation (a resumed run keeps its loop detection)."""
         self._service = service
         self._context = context
         self._budget = budget or ToolBudget()
         self._calls = 0
         self._seen: Counter[str] = Counter()
+        for tool, arguments in prior_calls or []:
+            self._calls += 1
+            self._seen[_call_key(tool, arguments)] += 1
 
     @property
     def calls_made(self) -> int:
@@ -69,9 +75,9 @@ class ToolExecutor:
         arguments = arguments or {}
         spec = TOOLS.get(tool)
         if spec is None:
-            if tool == TERMINAL_TOOL:
+            if tool in DECISION_TOOL_SPECS:
                 return _fail(
-                    tool, "terminal_tool", "submit_findings ends the loop; use validate_findings"
+                    tool, "decision_tool", f"{tool} is handled by the investigation engine"
                 )
             return _fail(tool, "unknown_tool", f"no tool named {tool!r}")
 
@@ -79,7 +85,7 @@ class ToolExecutor:
             return _fail(
                 tool, "budget_exceeded", f"tool call budget of {self._budget.max_calls} spent"
             )
-        key = f"{tool}:{canonical_json(arguments)}"
+        key = _call_key(tool, arguments)
         if self._seen[key] >= self._budget.max_identical_calls:
             return _fail(
                 tool, "repeated_call", "this exact call was already made; try a different query"
@@ -122,10 +128,9 @@ class ToolExecutor:
             )
         raise AssertionError("unreachable")  # pragma: no cover
 
-    @staticmethod
-    def validate_findings(arguments: dict[str, Any]) -> InvestigationResult:
-        """Schema validation for the terminal tool. Raises ValidationError."""
-        return InvestigationResult.model_validate(arguments)
+
+def _call_key(tool: str, arguments: dict[str, Any]) -> str:
+    return f"{tool}:{canonical_json(arguments)}"
 
 
 def _fail(tool: str, code: str, message: str, *, retryable: bool = False) -> ToolFailure:

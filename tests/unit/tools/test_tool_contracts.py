@@ -13,8 +13,7 @@ from packages.evidence.models import EvidenceItem
 from packages.evidence.types import EvidenceType, SourceSystem
 from packages.tools.contracts import ToolContext
 from packages.tools.executor import ToolBudget, ToolExecutor
-from packages.tools.findings import InvestigationResult
-from packages.tools.registry import TERMINAL_TOOL, TOOLS, tool_definitions
+from packages.tools.registry import TOOLS, tool_definitions
 
 INCIDENT = uuid.uuid4()
 
@@ -68,7 +67,9 @@ def test_every_architecture_tool_is_defined_with_a_json_schema():
         "get_git_diff",
         "get_recent_commits",
         "search_historical_incidents",
-        "submit_findings",
+        "update_hypotheses",
+        "conclude_investigation",
+        "declare_inconclusive",
     }
     metrics_schema = next(d for d in tool_definitions() if d["name"] == "get_metrics")
     assert "incident_id" not in metrics_schema["input_schema"]["properties"]
@@ -137,9 +138,25 @@ def test_call_budget_and_loop_detection():
     assert not over.ok and over.error.code == "budget_exceeded"
 
 
-def test_unknown_and_terminal_tools_are_not_executed():
+def test_unknown_and_decision_tools_are_not_executed_as_evidence_queries():
     assert _executor().execute("run_shell", {"cmd": "id"}).error.code == "unknown_tool"
-    assert _executor().execute(TERMINAL_TOOL, {}).error.code == "terminal_tool"
+    for name in ("update_hypotheses", "conclude_investigation", "declare_inconclusive"):
+        assert _executor().execute(name, {}).error.code == "decision_tool"
+
+
+def test_prior_calls_seed_loop_detection_and_budget_on_resume():
+    prior = [("get_metrics", {"metric": "error_rate"})] * 2
+    executor = ToolExecutor(
+        FakeEvidenceService(),  # type: ignore[arg-type]
+        ToolContext(incident_id=INCIDENT),
+        ToolBudget(max_calls=3, max_identical_calls=2, retry_backoff_seconds=0),
+        prior_calls=prior,
+    )
+    assert executor.execute("get_metrics", {"metric": "error_rate"}).error.code == "repeated_call"
+    assert executor.execute("get_metrics", {"metric": "cpu_usage"}).ok
+    assert executor.execute("get_metrics", {"metric": "memory_usage"}).error.code == (
+        "budget_exceeded"
+    )
 
 
 def test_every_registered_tool_dispatches_to_the_evidence_service():
@@ -152,20 +169,21 @@ def test_every_registered_tool_dispatches_to_the_evidence_service():
         assert result.ok, (name, result)
 
 
-def test_submit_findings_requires_exactly_one_outcome():
-    evidence = [str(uuid.uuid4())]
-    hypothesis = {"statement": "bad deploy", "confidence": 0.8, "supporting_evidence_ids": evidence}
-    ok = ToolExecutor.validate_findings(
-        {"hypotheses": [hypothesis], "selected_root_cause_index": 0}
-    )
-    assert ok.cited_evidence_ids() == {uuid.UUID(evidence[0])}
-    ToolExecutor.validate_findings({"hypotheses": [], "inconclusive_reason": "no signal"})
+def test_decision_tools_require_exactly_one_terminal_outcome_per_turn():
+    from packages.domain.investigation import ModelAction, interpret_turn
 
-    for bad in (
-        {"hypotheses": [hypothesis]},  # neither
-        {"hypotheses": [hypothesis], "selected_root_cause_index": 0, "inconclusive_reason": "x"},
-        {"hypotheses": [hypothesis], "selected_root_cause_index": 3},  # out of range
-        {"hypotheses": [{**hypothesis, "supporting_evidence_ids": []}], "inconclusive_reason": "x"},
-    ):
-        with pytest.raises(ValidationError):
-            InvestigationResult.model_validate(bad)
+    inconclusive = {"reason": "no signal", "evidence_gaps": ["no traces retained"]}
+    decision = interpret_turn(
+        "",
+        [
+            ModelAction(call_id="a", name="declare_inconclusive", arguments=inconclusive),
+            ModelAction(call_id="b", name="declare_inconclusive", arguments=inconclusive),
+        ],
+        frozenset(),
+    )
+    assert decision.inconclusive is not None and decision.inconclusive.call_id == "a"
+    assert [c.call_id for c in decision.invalid_calls] == ["b"]
+    with pytest.raises(ValidationError):
+        from packages.domain.investigation import InconclusiveDeclaration
+
+        InconclusiveDeclaration.model_validate({"reason": "x", "evidence_gaps": []})

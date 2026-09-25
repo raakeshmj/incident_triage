@@ -192,3 +192,35 @@ Contract details:
 - `tool_definitions()` emits name/description/JSON Schema for every tool --
   the shape a model-facing tool list takes -- but nothing hands it to a
   model yet.
+
+## Phase 5: the investigation agent (as built)
+
+The loop now exists; `15-investigation-engine.md` describes it in full.
+Where it departs from the sections above (ADR-0020, ADR-0021):
+
+- **Not "one structured result".** The engine checkpoints every step to
+  incident-core through fenced commands (`record_step`,
+  `apply_hypothesis_updates`, `complete`, `escalate`) so an investigation
+  survives a worker crash and every hypothesis change is validated and
+  audited as it happens. incident-core is still the only writer.
+- **`submit_findings` is retired** (`packages/tools/findings.py` removed).
+  Three decision tools replace it: `update_hypotheses`,
+  `conclude_investigation` (a *proposal* incident-core accepts or rejects
+  against deterministic stopping criteria) and `declare_inconclusive`.
+  Remediation proposals are out of scope for Phase 5.
+- **Model-facing tool names** follow Phase 5's vocabulary and map onto the
+  Phase 4 tools: `get_metric_window` → `get_metrics`,
+  `get_recent_deployments` → `get_deploys`, `get_config_changes` →
+  `get_config_history`, `get_code_changes` → `get_git_diff`,
+  `search_similar_incidents` → `search_historical_incidents`, plus
+  `get_incident_evidence`. `incident_id` is still never an argument.
+- **Budgets**: 15 model iterations, 25 tool calls, 2 identical calls, 40
+  evidence items, 900 s, 600k tokens by default (env-configurable), frozen
+  on the investigation at creation. Soft exhaustion gives the model one
+  final turn with evidence tools disabled, then escalates.
+- **Status vocabularies**: investigation `CREATED | INVESTIGATING |
+  COMPLETED | ESCALATED | FAILED`; hypothesis `ACTIVE | SUPPORTED | WEAKENED
+  | REJECTED | SELECTED` (mapping in ADR-0020).
+- **Model**: behind the `InvestigationModel` Protocol; the Claude adapter is
+  the only SDK importer; the model is chosen by `INVESTIGATION_MODEL`
+  (default `claude-sonnet-4-6`) and pinned per investigation.

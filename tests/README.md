@@ -55,3 +55,25 @@ Integration and e2e tests auto-skip with a clear message if Postgres or
 Redis isn't reachable, rather than failing opaquely.
 
 Run everything: `make test` (equivalent to `pytest`).
+
+Phase 5 additions (no test calls a model API; `FakeInvestigationModel`
+scripts turns that react to the real tool results):
+
+- `unit/domain/test_investigation.py` -- schemas, turn interpretation,
+  hypothesis update rules, the deterministic stopping criteria.
+- `unit/agents/` -- model config/profiles (switching `INVESTIGATION_MODEL`
+  without code changes), the Claude adapter's request building and error
+  mapping against a fake SDK client, toolset and transcript rebuilding.
+- `unit/test_boundaries.py` -- the agent has no path to DB/Redis/HTTP/shell,
+  and only `packages/agents/claude.py` imports the SDK.
+- `integration/test_investigation_engine.py` -- the real engine, incident-core
+  and EvidenceService: success, trace, invented/unseen evidence ids,
+  contradictions, inconclusive, every budget, retryable/terminal model
+  errors, malformed output, evidence outage, crash + resume, pending
+  actions, duplicate start/run, lease loss.
+- `e2e/test_investigation_event_flow.py` -- scheduler -> outbox -> Redis ->
+  consumer -> engine -> `RCA_READY`, redelivery is a no-op.
+- `e2e/test_investigation_live_stack.py` (`stack`) -- a real chaos incident
+  investigated through the live evidence backends.
+- `scripts/manual_investigation.py` (`make investigate-live`) is the one
+  real-model run; it is a script, not a test, and is never collected.

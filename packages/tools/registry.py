@@ -7,10 +7,20 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from pydantic import BaseModel
+
+from packages.domain.investigation import (
+    CONCLUDE,
+    DECISION_TOOLS,
+    DECLARE_INCONCLUSIVE,
+    UPDATE_HYPOTHESES,
+    FinalInvestigationResult,
+    HypothesisUpdateBatch,
+    InconclusiveDeclaration,
+)
 from packages.evidence.models import EvidenceItem
 from packages.evidence.service import EvidenceService
 from packages.tools import contracts as c
-from packages.tools.findings import InvestigationResult
 
 Handler = Callable[[EvidenceService, c.ToolContext, Any], EvidenceItem]
 
@@ -158,17 +168,35 @@ TOOLS: dict[str, ToolSpec] = {
     ]
 }
 
-TERMINAL_TOOL = "submit_findings"
-TERMINAL_TOOL_DESCRIPTION = (
-    "End the investigation with ranked, evidence-cited hypotheses (cite evidence_id values "
-    "returned by other tools) and either a selected root cause or an inconclusive reason."
-)
+# The investigation's decision tools (Phase 5, ADR-0020): not evidence
+# queries -- they carry the model's hypothesis changes and its terminal
+# decision, validated by the engine and incident-core. They supersede the
+# Phase 4 draft `submit_findings` contract.
+DECISION_TOOL_SPECS: dict[str, tuple[str, type[BaseModel]]] = {
+    UPDATE_HYPOTHESES: (
+        "Create or update hypotheses (competing explanations). Cite evidence_id values "
+        "returned by other tools as supporting or contradicting evidence; record what "
+        "evidence is still missing. REJECTED needs contradicting evidence.",
+        HypothesisUpdateBatch,
+    ),
+    CONCLUDE: (
+        "Conclude with a selected root-cause hypothesis and an evidence-grounded RCA. "
+        "Accepted only if the application's stopping criteria hold; otherwise you are "
+        "told which criteria are unmet and the investigation continues.",
+        FinalInvestigationResult,
+    ),
+    DECLARE_INCONCLUSIVE: (
+        "End the investigation without a root cause: the evidence available cannot "
+        "determine one. The incident is escalated to a human.",
+        InconclusiveDeclaration,
+    ),
+}
+assert set(DECISION_TOOL_SPECS) == set(DECISION_TOOLS)
 
 
 def tool_definitions() -> list[dict[str, Any]]:
-    """Name / description / JSON Schema for every tool, including the
-    terminal `submit_findings` -- the shape a model-facing tool list takes.
-    Not handed to any model in Phase 4."""
+    """Name / description / JSON Schema for every evidence tool and every
+    decision tool -- the shape a model-facing tool list takes."""
     definitions = [
         {
             "name": spec.name,
@@ -177,11 +205,8 @@ def tool_definitions() -> list[dict[str, Any]]:
         }
         for spec in TOOLS.values()
     ]
-    definitions.append(
-        {
-            "name": TERMINAL_TOOL,
-            "description": TERMINAL_TOOL_DESCRIPTION,
-            "input_schema": InvestigationResult.model_json_schema(),
-        }
-    )
+    definitions += [
+        {"name": name, "description": description, "input_schema": model.model_json_schema()}
+        for name, (description, model) in DECISION_TOOL_SPECS.items()
+    ]
     return definitions

@@ -34,7 +34,7 @@ scaling or trust benefit.
 | Data | Sole writer | Everyone else |
 |---|---|---|
 | `alerts` | `incident-core` (persists, correlates, and links to an incident, all in one transaction) | `alert-ingestion` never writes this table — it sends an `AlertReceivedCommand` and incident-core decides what to persist |
-| `incidents`, `investigations`, `hypotheses`, `rca_reports` | `incident-core` | read-only; `investigation-agent` submits *proposed* content via command, incident-core validates and persists |
+| `incidents`, `investigations`, `hypotheses`, `rca_reports` | `incident-core` | read-only; `investigation-agent` submits *proposed* content via command, incident-core validates and persists (Phase 5: per-step checkpoint commands, ADR-0020) |
 | `evidence`, `evidence_blobs` | `evidence-service` | read-only; referenced by ID only |
 | `remediation_proposals`, `policy_decisions` | `incident-core` (persists), `policy-engine` (computes decision, stateless) | investigation-agent proposes; nothing else writes |
 | `approvals` | `incident-core` | web-ui/Slack submit a command; incident-core records it |

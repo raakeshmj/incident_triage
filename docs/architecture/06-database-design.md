@@ -404,3 +404,21 @@ instance cannot violate them under concurrent load.
   for large raw payloads (e.g. full log dumps) after N days, but the
   `content_hash` and metadata row is kept forever so citations remain
   resolvable (see `08-evidence-model.md`).
+
+## Phase 5: investigation tables (migration `0004_investigations`)
+
+All in `incident_core`, all written only by `InvestigationCoreService`:
+
+| Table | Key columns | Constraints |
+|---|---|---|
+| `investigations` | `incident_id`, `attempt_number`, `status`, `lease_owner`, `lease_expires_at`, `iteration_count`, `tool_call_count`, `evidence_count`, token counts (`input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_creation_tokens`), `model_provider`, `model_name`, `model_config`, `budget`, `last_action`, `failure_reason`, `escalation_reason`, `inconclusive_reason`, `selected_hypothesis_id`, `final_result`, `started_at`, `completed_at` | unique `(incident_id, attempt_number)`; index `(status, lease_expires_at)` for the resume sweep |
+| `hypotheses` | `investigation_id`, `key`, `description`, `status`, `confidence`, `missing_evidence`, `rationale` | unique `(investigation_id, key)` |
+| `hypothesis_evidence_links` | `hypothesis_id`, `evidence_id`, `relation` | PK `(hypothesis_id, evidence_id)`; FK to `evidence_refs`; `relation in (supports, contradicts)`; immutable |
+| `investigation_steps` | `investigation_id`, `sequence`, `iteration`, `kind`, `call_id`, `payload`, `latency_ms` | unique `(investigation_id, sequence)`; immutable |
+| `rca_reports` | `investigation_id`, `selected_hypothesis_id`, `summary`, `report` | unique `investigation_id`; immutable |
+
+`evidence_refs.investigation_id` now has an FK to `investigations`.
+Immutability is a `BEFORE UPDATE OR DELETE` trigger calling
+`incident_core.reject_row_mutation()`, so the audit trail can't be edited
+even by incident-core's own role. Every write command locks the
+investigation row and checks the lease owner (fencing, ADR-0020).

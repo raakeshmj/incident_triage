@@ -44,6 +44,11 @@ def _clean_tables(engine: Engine) -> Iterator[None]:
             conn.execute(
                 text(
                     "TRUNCATE TABLE "
+                    "incident_core.rca_reports, "
+                    "incident_core.hypothesis_evidence_links, "
+                    "incident_core.hypotheses, "
+                    "incident_core.investigation_steps, "
+                    "incident_core.investigations, "
                     "incident_core.evidence_refs, "
                     "incident_core.outbox_events, "
                     "incident_core.processed_commands, "
@@ -67,13 +72,15 @@ def client(engine: Engine) -> Iterator[TestClient]:
         yield test_client
 
 
-API_PORT = 8000
+# The port Alertmanager delivers to: infrastructure/alertmanager/alertmanager.yml's
+# default, or whatever ALERTMANAGER_WEBHOOK_URL / API_PORT point it at on this host.
+API_PORT = int(os.environ.get("API_PORT", "8000"))
 
 
 @pytest.fixture(scope="module")
 def api_server(engine: Engine) -> Iterator[None]:
-    """A real uvicorn server for the real app on :8000 -- the port
-    infrastructure/alertmanager/alertmanager.yml delivers to."""
+    """A real uvicorn server for the real app on API_PORT -- the port
+    Alertmanager delivers to (8000 unless this host remaps it)."""
     with socket.socket() as probe:
         if probe.connect_ex(("127.0.0.1", API_PORT)) == 0:
             pytest.skip(f"port {API_PORT} is already in use (is `make run-api` running?)")

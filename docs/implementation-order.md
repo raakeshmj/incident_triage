@@ -42,6 +42,17 @@ remediation (still out of scope). It also implements the state machine's
 alert-driven `TRIAGING -> CANCELLED` edge from this document's Phase 1
 (ADR-0019).
 
+Build session "Phase 5" delivers this document's **Phase 5 investigation
+agent** minus the golden dataset / eval harness (deliberately deferred; the
+persisted trace is the hook it will replay): a bounded, resumable,
+hypothesis-driven loop with Claude behind a model abstraction
+(`INVESTIGATION_MODEL`, default `claude-sonnet-4-6`), incident-core
+validation of every hypothesis change and conclusion, deterministic stopping
+criteria, `TRIAGING → INVESTIGATING → RCA_READY | ESCALATED` driven by a
+debounce scheduler and events. Departures from §07 are in ADR-0020/0021; no
+remediation or action-catalog validation (that needs this document's Phase 3).
+See `architecture/15-investigation-engine.md`.
+
 ## Phase 0 — Foundations (no services yet)
 
 - `libs/schemas`: Pydantic models for the domain entities, event envelope,

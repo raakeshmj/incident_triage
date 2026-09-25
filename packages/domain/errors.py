@@ -28,3 +28,16 @@ class EvidenceRefConflictError(DomainError):
 class ConcurrentModificationError(DomainError):
     """An optimistic-concurrency `version` check failed; the caller should
     retry the (idempotent) command."""
+
+
+class InvalidIncidentTransitionError(DomainError):
+    """The requested lifecycle change isn't allowed from the incident's current state."""
+
+
+class InvestigationNotFoundError(DomainError):
+    pass
+
+
+class LeaseLostError(DomainError):
+    """This worker no longer owns the investigation (its lease expired and
+    another worker claimed it). The caller must stop writing immediately."""

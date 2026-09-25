@@ -174,3 +174,20 @@ is the one exception, and it's deliberate — see
                                                                          ▼
                                                                       CLOSED (human)
 ```
+
+## Phase 5: the investigation edges are live
+
+- `TRIAGING → INVESTIGATING`: the investigation worker's scheduler calls
+  `due_for_investigation(debounce_seconds)` (default 60 s,
+  `INVESTIGATION_DEBOUNCE_SECONDS`) and `request_investigation` for each;
+  the guard (≥1 linked alert still firing) and the optimistic `version`
+  check run under a row lock; idempotent per incident.
+- `INVESTIGATING → RCA_READY`: only through `complete()`, after
+  incident-core re-checks grounding and the deterministic stopping criteria
+  (`15-investigation-engine.md`).
+- `INVESTIGATING → ESCALATED`: inconclusive, budget exhausted, malformed
+  output, evidence unavailable, model failure. The reason code is on the
+  `InvestigationFailed` event and the investigation row.
+- If the incident has already left `INVESTIGATING` when an investigation
+  finishes, the result is recorded but the incident is not moved.
+  Remediation states are untouched by Phase 5.

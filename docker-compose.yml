@@ -172,7 +172,7 @@ services:
       - ./infrastructure/grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     ports:
-      - "3000:3000"
+      - "${GRAFANA_PORT:-3000}:3000"
     depends_on:
       - prometheus
       - loki
@@ -180,6 +180,16 @@ services:
 
   alertmanager:
     image: prom/alertmanager:v0.27.0
+    # The committed config targets the default API port; a host whose :8000 is
+    # taken sets ALERTMANAGER_WEBHOOK_URL and the URL is swapped in at start.
+    environment:
+      ALERTMANAGER_WEBHOOK_URL: ${ALERTMANAGER_WEBHOOK_URL:-http://host.docker.internal:8000/api/v1/alerts/alertmanager}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        sed "s#http://host.docker.internal:8000/api/v1/alerts/alertmanager#$${ALERTMANAGER_WEBHOOK_URL}#"
+        /etc/alertmanager/alertmanager.yml > /tmp/alertmanager.yml &&
+        exec /bin/alertmanager --config.file=/tmp/alertmanager.yml --storage.path=/alertmanager
     volumes:
       - ./infrastructure/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
     ports:

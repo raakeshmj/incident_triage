@@ -157,6 +157,8 @@ def test_invented_evidence_ids_are_quarantined_and_recorded(env):
                         {
                             "key": "H1",
                             "description": "made up",
+                            "cause_category": "other",
+                            "component": "checkout-service",
                             "status": "SUPPORTED",
                             "supporting_evidence_ids": [fake_id],
                             "rationale": "trust me",
@@ -226,6 +228,8 @@ def test_contradictory_hypotheses_block_the_conclusion_until_resolved(env):
                         {
                             "key": "H1",
                             "description": "deploy regression",
+                            "cause_category": "deployment",
+                            "component": "checkout-service",
                             "status": "SUPPORTED",
                             "supporting_evidence_ids": [metric, deploy],
                             "rationale": "r",
@@ -233,6 +237,8 @@ def test_contradictory_hypotheses_block_the_conclusion_until_resolved(env):
                         {
                             "key": "H2",
                             "description": "payment dependency",
+                            "cause_category": "dependency",
+                            "component": "payment-service",
                             "status": "SUPPORTED",
                             "supporting_evidence_ids": [metric],
                             "rationale": "r",

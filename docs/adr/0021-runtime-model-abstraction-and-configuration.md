@@ -18,7 +18,7 @@ Haiku 4.5 rejects `effort`, some models always think, effort levels differ.
    this. `ClaudeInvestigationModel` (`packages/agents/claude.py`) is the
    only module importing `anthropic` (enforced by a boundary test);
    `FakeInvestigationModel` serves tests.
-2. **Configuration** via `InvestigationSettings`: `INVESTIGATION_MODEL_PROVIDER`
+2. **Configuration** via `InvestigationSettings`: `INVESTIGATION_PROVIDER` (formerly `INVESTIGATION_MODEL_PROVIDER`, still accepted)
    (`anthropic`), `INVESTIGATION_MODEL`, `INVESTIGATION_EFFORT`,
    `INVESTIGATION_THINKING` (`auto|off`), `INVESTIGATION_MAX_TOKENS`,
    timeouts/retries, budgets. `resolve_model_spec` combines settings with

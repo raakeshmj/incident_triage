@@ -227,6 +227,8 @@ class HypothesisRow(Base):
     status: Mapped[str] = mapped_column(String, nullable=False)
     confidence: Mapped[Decimal | None] = mapped_column(Numeric(3, 2), nullable=True)
     missing_evidence: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    cause_category: Mapped[str | None] = mapped_column(String, nullable=True)
+    component: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

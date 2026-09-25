@@ -56,6 +56,26 @@ Redis isn't reachable, rather than failing opaquely.
 
 Run everything: `make test` (equivalent to `pytest`).
 
+Phase 6 additions (still no model API; `tests/conftest.py` replaces
+`ANTHROPIC_API_KEY` with a placeholder for the whole run):
+
+- `unit/agents/test_prompt_caching.py` -- stable/dynamic separation, only
+  the stable prefix marked, capability-gated hints, cache off, metadata from
+  usage, changing incident state never reuses stale dynamic content, digest
+  sensitivity, no key in requests.
+- `unit/evaluation/` -- every golden scenario validates and keeps its
+  grading key out of model-visible alerts; scenario worlds through the real
+  adapters; secret scrubbing; the CLI's live-mode guards (confirmation,
+  credentials, provider/model overrides) without touching a database.
+- `integration/test_evaluation.py` -- every golden scenario passes with the
+  heuristic investigator; recordings complete and round-trip; replay is
+  deterministic and detects divergence and re-validates; grading of
+  incorrect root causes, unsafe RCA on must-escalate scenarios, invented
+  evidence ids, rejected conclusions, malformed output, missing provider
+  credentials; cache metadata with and without a caching provider;
+  repeated runs, aggregation and machine-readable results; no API key in
+  recordings.
+
 Phase 5 additions (no test calls a model API; `FakeInvestigationModel`
 scripts turns that react to the real tool results):
 

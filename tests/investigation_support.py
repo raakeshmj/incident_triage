@@ -193,6 +193,8 @@ def hypotheses_turn(request: DecisionRequest) -> ModelTurn:
                     {
                         "key": "H1",
                         "description": "The most recent deployment introduced a regression.",
+                        "cause_category": "deployment",
+                        "component": "checkout-service",
                         "status": "SUPPORTED",
                         "confidence": 0.75,
                         "supporting_evidence_ids": [
@@ -204,6 +206,8 @@ def hypotheses_turn(request: DecisionRequest) -> ModelTurn:
                     {
                         "key": "H2",
                         "description": "A failing payment dependency caused checkout failures.",
+                        "cause_category": "dependency",
+                        "component": "payment-service",
                         "status": "WEAKENED",
                         "confidence": 0.1,
                         "contradicting_evidence_ids": [ids["get_service_health"]],

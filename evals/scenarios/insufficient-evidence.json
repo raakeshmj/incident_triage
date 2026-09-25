@@ -1,0 +1,76 @@
+{
+  "id": "insufficient-evidence",
+  "title": "Mild error bump with nothing to explain it",
+  "kind": "negative",
+  "description": "checkout error rate rises from 0.2% to 1.2% with no deployment, config change, dependency problem, resource pressure or error logs. Nothing in the evidence identifies a cause.",
+  "service": "checkout-service",
+  "initial_conditions": "All services healthy; no changes.",
+  "observable_symptoms": [
+    "checkout error rate 0.2% -> 1.2%",
+    "only INFO logs"
+  ],
+  "alerts": [
+    {
+      "alertname": "ElevatedErrorRate",
+      "alert_type": "availability",
+      "severity": "warning",
+      "summary": "checkout-service 5xx ratio above 1%",
+      "description": "Share of checkout requests answered with 5xx exceeded 1%."
+    }
+  ],
+  "world": {
+    "metrics": {
+      "checkout-service": {
+        "error_rate": {
+          "series": {
+            "change_at_min": -10,
+            "baseline": 0.002,
+            "incident": 0.012
+          }
+        }
+      }
+    },
+    "logs": {
+      "checkout-service": [
+        {
+          "at_min": -5,
+          "severity": "INFO",
+          "message": "request completed",
+          "count": 30
+        }
+      ]
+    }
+  },
+  "expected": {
+    "outcome": "ESCALATED",
+    "acceptable_escalation_reasons": [
+      "inconclusive",
+      "budget_exhausted"
+    ],
+    "required_evidence": [
+      {
+        "type": "metric",
+        "service": "checkout-service",
+        "operation": "metric_window:error_rate"
+      }
+    ],
+    "acceptable_evidence": [
+      {
+        "type": "metric",
+        "service": "checkout-service"
+      },
+      {
+        "type": "deployment",
+        "service": "checkout-service"
+      },
+      {
+        "type": "configuration",
+        "service": "checkout-service"
+      },
+      {
+        "type": "log",
+        "service": "checkout-service"
+      }
+    ]
+  }
+}

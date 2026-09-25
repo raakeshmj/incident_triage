@@ -7,6 +7,7 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
+from pydantic import ValidationError
 
 from packages.domain.investigation import (
     FinalInvestigationResult,
@@ -56,7 +57,7 @@ def _result(key="H1", root_ids=(M1, D1), confidence=0.8, contradictions=()):
     )
 
 
-def _snap(key, status, supporting=(), contradicting=()):
+def _snap(key, status, supporting=(), contradicting=(), cause_category=None, component=None):
     return HypothesisSnapshot(
         key=key,
         description=key,
@@ -64,6 +65,8 @@ def _snap(key, status, supporting=(), contradicting=()):
         confidence=0.5,
         supporting=list(supporting),
         contradicting=list(contradicting),
+        cause_category=cause_category,
+        component=component,
     )
 
 
@@ -140,11 +143,32 @@ def test_updates_citing_unseen_evidence_are_rejected_whole():
             "both support and contradict",
         ),
         (dict(status="ACTIVE"), _snap("H1", "REJECTED", contradicting=[L1]), "cannot change"),
+        (dict(description="d"), None, "cause_category and component are required"),
+        (
+            dict(cause_category="dependency"),
+            _snap("H1", "ACTIVE", cause_category="deployment"),
+            "cause_category is fixed",
+        ),
+        (
+            dict(component="payment-service"),
+            _snap("H1", "ACTIVE", component="checkout-service"),
+            "component is fixed",
+        ),
     ],
 )
 def test_hypothesis_lifecycle_rules(update, existing, expected):
     problems = check_hypothesis_update(_update(**update), existing, {M1, M2, D1, L1})
     assert any(expected in p for p in problems), problems
+
+
+def test_creating_a_classified_hypothesis_has_no_problems():
+    update = _update(description="d", cause_category="deployment", component="checkout-service")
+    assert check_hypothesis_update(update, None, set()) == []
+
+
+def test_cause_category_is_a_closed_taxonomy():
+    with pytest.raises(ValidationError):
+        _update(description="d", cause_category="bad deploy", component="checkout-service")
 
 
 def test_a_valid_transition_has_no_problems():

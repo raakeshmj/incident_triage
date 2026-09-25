@@ -1,0 +1,100 @@
+{
+  "id": "cpu-saturation",
+  "title": "Checkout CPU pinned, requests queue",
+  "kind": "positive",
+  "description": "A pathological input pins checkout-service CPU at 97%; its worker pool is exhausted and p95 latency reaches 2.4s at unchanged traffic.",
+  "service": "checkout-service",
+  "initial_conditions": "checkout-service at ~35% CPU; traffic steady.",
+  "observable_symptoms": [
+    "checkout CPU 35% -> 97%",
+    "checkout p95 latency 0.12s -> 2.4s",
+    "WARNING logs: worker pool exhausted",
+    "request rate unchanged"
+  ],
+  "alerts": [
+    {
+      "alertname": "HighP95Latency",
+      "alert_type": "latency",
+      "summary": "checkout-service p95 latency above 1s",
+      "description": "p95 latency of checkout requests exceeded 1s for 5 minutes."
+    }
+  ],
+  "world": {
+    "metrics": {
+      "checkout-service": {
+        "cpu_usage": {
+          "series": {
+            "change_at_min": -12,
+            "baseline": 0.35,
+            "incident": 0.97
+          }
+        },
+        "latency_p95": {
+          "series": {
+            "change_at_min": -12,
+            "baseline": 0.12,
+            "incident": 2.4
+          }
+        }
+      }
+    },
+    "logs": {
+      "checkout-service": [
+        {
+          "at_min": -11,
+          "severity": "WARNING",
+          "message": "worker pool exhausted; request queue depth 480",
+          "count": 45
+        }
+      ]
+    }
+  },
+  "expected": {
+    "outcome": "RCA_READY",
+    "root_cause": {
+      "categories": [
+        "resource_cpu"
+      ],
+      "component": "checkout-service"
+    },
+    "required_evidence": [
+      {
+        "type": "metric",
+        "service": "checkout-service",
+        "operation": "metric_window:cpu_usage"
+      },
+      {
+        "type": "log",
+        "service": "checkout-service"
+      }
+    ],
+    "acceptable_evidence": [
+      {
+        "type": "metric",
+        "service": "checkout-service"
+      },
+      {
+        "type": "log",
+        "service": "checkout-service"
+      },
+      {
+        "type": "deployment",
+        "service": "checkout-service"
+      }
+    ],
+    "competing_hypotheses": [
+      {
+        "categories": [
+          "traffic"
+        ],
+        "component": "checkout-service"
+      },
+      {
+        "categories": [
+          "deployment"
+        ],
+        "component": "checkout-service"
+      }
+    ]
+  }
+}

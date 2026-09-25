@@ -103,11 +103,11 @@ def test_transcript_renders_replayed_blocks_and_one_result_per_tool_call():
     assert results[1] == {"type": "text", "text": "Budget: turn 2 of 15"}
 
 
-def test_request_uses_caching_adaptive_thinking_and_effort():
+def test_request_uses_adaptive_thinking_and_effort():
     client = StubClient(_message([{"type": "text", "text": "hi", "citations": None}], "end_turn"))
     ClaudeInvestigationModel(SPEC, client=client).decide(REQUEST)  # type: ignore[arg-type]
     sent = client.calls[0]
-    assert sent["cache_control"] == {"type": "ephemeral"}
+    assert "cache_control" not in sent  # no whole-transcript caching (test_prompt_caching.py)
     assert sent["thinking"] == {"type": "adaptive"}
     assert sent["output_config"] == {"effort": "medium"}
     assert sent["tools"][0]["name"] == "get_logs"

@@ -18,6 +18,10 @@ _ROOT = Path(__file__).resolve().parents[1]
 # out of the box against the documented docker-compose defaults.
 load_dotenv(_ROOT / ".env", override=False)
 load_dotenv(_ROOT / ".env.example", override=False)
+# The suite never calls a model provider and must never hold a real key: the
+# environment beats .env for every settings class, so this placeholder is
+# what any credential lookup under pytest sees.
+os.environ["ANTHROPIC_API_KEY"] = "test-placeholder-not-a-real-key"
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:

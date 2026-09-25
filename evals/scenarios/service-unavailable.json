@@ -1,0 +1,103 @@
+{
+  "id": "service-unavailable",
+  "title": "Inventory pods evicted by a failing node",
+  "kind": "positive",
+  "description": "The node running inventory-service goes NotReady and its pods are evicted; inventory is down with no deployment or config change.",
+  "service": "inventory-service",
+  "initial_conditions": "inventory-service healthy; no changes.",
+  "observable_symptoms": [
+    "inventory availability 1 -> 0",
+    "request rate drops to 0",
+    "CRITICAL logs: node NotReady, pod evicted"
+  ],
+  "alerts": [
+    {
+      "alertname": "ServiceDown",
+      "alert_type": "availability",
+      "summary": "inventory-service scrape target down",
+      "description": "inventory-service has been unreachable for 2 minutes."
+    }
+  ],
+  "world": {
+    "metrics": {
+      "inventory-service": {
+        "availability": {
+          "series": {
+            "change_at_min": -6,
+            "baseline": 1,
+            "incident": 0
+          }
+        },
+        "request_rate": {
+          "series": {
+            "change_at_min": -6,
+            "baseline": 40,
+            "incident": 0
+          }
+        }
+      }
+    },
+    "logs": {
+      "inventory-service": [
+        {
+          "at_min": -7,
+          "severity": "CRITICAL",
+          "message": "node ip-10-0-3-17 NotReady: kubelet stopped posting status; pod evicted",
+          "count": 3
+        }
+      ]
+    }
+  },
+  "expected": {
+    "outcome": "RCA_READY",
+    "root_cause": {
+      "categories": [
+        "infrastructure"
+      ],
+      "component": "inventory-service"
+    },
+    "required_evidence": [
+      {
+        "type": "metric",
+        "service": "inventory-service",
+        "operation": "service_health"
+      },
+      {
+        "type": "log",
+        "service": "inventory-service"
+      }
+    ],
+    "acceptable_evidence": [
+      {
+        "type": "metric",
+        "service": "inventory-service"
+      },
+      {
+        "type": "log",
+        "service": "inventory-service"
+      },
+      {
+        "type": "deployment",
+        "service": "inventory-service"
+      },
+      {
+        "type": "configuration",
+        "service": "inventory-service"
+      }
+    ],
+    "competing_hypotheses": [
+      {
+        "categories": [
+          "deployment"
+        ],
+        "component": "inventory-service"
+      },
+      {
+        "categories": [
+          "configuration"
+        ],
+        "component": "inventory-service"
+      }
+    ]
+  }
+}

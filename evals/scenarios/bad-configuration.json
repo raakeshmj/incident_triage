@@ -1,0 +1,107 @@
+{
+  "id": "bad-configuration",
+  "title": "Gateway timeout configured to 50ms",
+  "kind": "positive",
+  "description": "A config change sets payment-service gateway_timeout_ms from 5000 to 50; nearly every gateway call now times out although the gateway is healthy.",
+  "service": "payment-service",
+  "initial_conditions": "payment-service healthy with gateway_timeout_ms=5000; payment-gateway healthy.",
+  "observable_symptoms": [
+    "config change gateway_timeout_ms 5000 -> 50 one minute before errors",
+    "payment error rate 0.2% -> 38%",
+    "ERROR logs: payment-gateway call timed out after 50ms",
+    "payment-gateway itself healthy"
+  ],
+  "alerts": [
+    {
+      "alertname": "HighErrorRate",
+      "alert_type": "availability",
+      "summary": "payment-service 5xx ratio above 10%",
+      "description": "Share of payment requests answered with 5xx exceeded 10% for 5 minutes."
+    }
+  ],
+  "world": {
+    "metrics": {
+      "payment-service": {
+        "error_rate": {
+          "series": {
+            "change_at_min": -7,
+            "baseline": 0.002,
+            "incident": 0.38
+          }
+        }
+      }
+    },
+    "logs": {
+      "payment-service": [
+        {
+          "at_min": -7,
+          "severity": "ERROR",
+          "message": "payment-gateway call timed out after 50ms",
+          "count": 70
+        }
+      ]
+    },
+    "config_changes": [
+      {
+        "service": "payment-service",
+        "at_min": -8,
+        "key": "gateway_timeout_ms",
+        "old_value": 5000,
+        "new_value": 50
+      }
+    ]
+  },
+  "expected": {
+    "outcome": "RCA_READY",
+    "root_cause": {
+      "categories": [
+        "configuration"
+      ],
+      "component": "payment-service"
+    },
+    "required_evidence": [
+      {
+        "type": "configuration",
+        "service": "payment-service"
+      },
+      {
+        "type": "metric",
+        "service": "payment-service",
+        "operation": "metric_window:error_rate"
+      }
+    ],
+    "acceptable_evidence": [
+      {
+        "type": "configuration",
+        "service": "payment-service"
+      },
+      {
+        "type": "metric",
+        "service": "payment-service"
+      },
+      {
+        "type": "log",
+        "service": "payment-service"
+      },
+      {
+        "type": "metric",
+        "service": "payment-gateway",
+        "operation": "service_health"
+      }
+    ],
+    "competing_hypotheses": [
+      {
+        "categories": [
+          "dependency"
+        ],
+        "component": "payment-gateway"
+      },
+      {
+        "categories": [
+          "deployment"
+        ],
+        "component": "payment-service"
+      }
+    ]
+  }
+}

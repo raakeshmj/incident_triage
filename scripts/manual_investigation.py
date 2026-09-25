@@ -16,7 +16,8 @@ What it does, end to end on the live stack:
     the scenario or the expected cause;
  4. prints what it did and exports the complete trace (context, every model
     turn, every tool call and result, hypothesis changes, outcome, RCA) to
-    investigation-traces/<investigation_id>.json;
+    investigation-traces/<investigation_id>.json as a Phase 6 recording
+    (`replay --trace <id>` inspects it without any model or telemetry);
  5. stops the chaos scenario (recording the rollback) no matter what.
 
 Refuses Opus-class models unless --allow-opus (the Phase 5 brief: the
@@ -26,7 +27,6 @@ runtime test runs on the configured runtime model, not Opus 5.5).
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import socket
 import sys
@@ -87,7 +87,7 @@ def main() -> int:
     if spec.model.startswith("claude-opus") and not args.allow_opus:
         print(f"refusing to run the manual investigation on {spec.model}; see --help")
         return 2
-    if AnthropicCredentials().anthropic_api_key is None:
+    if spec.provider == "anthropic" and AnthropicCredentials().anthropic_api_key is None:
         print("ANTHROPIC_API_KEY is not set (environment or .env)")
         return 2
     print(
@@ -128,50 +128,28 @@ def main() -> int:
         outcome = runtime.engine.run(investigation_id)
         elapsed = time.monotonic() - t0
 
-        trace = runtime.investigations.get_trace(investigation_id)
-        out_dir = ROOT / "investigation-traces"
-        out_dir.mkdir(exist_ok=True)
-        path = out_dir / f"{investigation_id}.json"
-        path.write_text(json.dumps(trace, indent=2, default=str))
+        from packages.evaluation.recording import (
+            EvidenceStoreReader,
+            build_recording,
+            save_recording,
+        )
+        from packages.evaluation.replay import render_timeline
+        from packages.evidence.db.base import make_engine as make_evidence_engine
+        from packages.evidence.db.base import make_session_factory as make_evidence_sessions
 
-        inv = trace["investigation"]
-        with session_factory() as session:
-            final_status = session.get(IncidentRow, incident.id).status  # type: ignore[union-attr]
-        print(
-            f"\noutcome: {outcome.value if outcome else None} in {elapsed:.0f}s; "
-            f"incident is {final_status}"
+        recording = build_recording(
+            investigation_id,
+            investigations=runtime.investigations,
+            incidents=runtime.core,
+            evidence=EvidenceStoreReader(make_evidence_sessions(make_evidence_engine())),
+            model_mode="live",
+            evidence_mode="live",
+            wall_ms=int(elapsed * 1000),
         )
-        print(
-            f"iterations={inv['iteration_count']} tool_calls={inv['tool_call_count']} "
-            f"evidence={inv['evidence_count']} tokens in/out/cache_read="
-            f"{inv['input_tokens']}/{inv['output_tokens']}/{inv['cache_read_tokens']}"
-        )
-        for step in trace["steps"]:
-            payload = step["payload"]
-            if step["kind"] == "tool_call":
-                print(
-                    f"  [{step['iteration']}] {payload['tool']}({json.dumps(payload['arguments'])})"
-                    f" -> {'ok' if payload['ok'] else payload.get('error_code')}: "
-                    f"{(payload.get('summary') or '')[:120]}"
-                )
-            elif step["kind"] == "hypothesis_update":
-                for applied in payload["applied"]:
-                    print(
-                        f"  [{step['iteration']}] {applied['key']}: "
-                        f"{applied['from_status']} -> {applied['to_status']}"
-                    )
-                for rejected in payload["rejected"]:
-                    print(
-                        f"  [{step['iteration']}] REJECTED update {rejected['key']}: "
-                        f"{rejected['problems']}"
-                    )
-            elif step["kind"] in ("conclusion_rejected", "invalid_call", "model_error"):
-                print(f"  [{step['iteration']}] {step['kind']}: {json.dumps(payload)[:200]}")
-        if trace["rca_report"]:
-            print("\n" + trace["rca_report"]["summary"])
-        else:
-            print(f"\nno RCA: {inv['final_result']}")
-        print(f"\ntrace exported: {path}")
+        path = save_recording(recording)
+        print(f"\noutcome: {outcome.value if outcome else None} in {elapsed:.0f}s")
+        print(render_timeline(recording))
+        print(f"\nrecording: {path}  (inspect: replay --trace {recording.recording_id})")
         return 0
     finally:
         chaos.main(["stop", "--service", SERVICE])

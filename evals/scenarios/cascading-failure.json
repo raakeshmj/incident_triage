@@ -1,0 +1,136 @@
+{
+  "id": "cascading-failure",
+  "title": "Payment rollout cascades into checkout",
+  "kind": "positive",
+  "description": "payment-service 2.3.0 is deployed; its refund handler throws, payment errors reach 60% and checkout fails on the payment step. The alert is on checkout; the cause is one hop away.",
+  "service": "checkout-service",
+  "initial_conditions": "All services healthy; payment-service on 2.2.1.",
+  "observable_symptoms": [
+    "payment deployment 14 minutes before the alert",
+    "payment error rate 0.2% -> 60%",
+    "checkout error rate 0.2% -> 30%, dependency errors to payment-service",
+    "payment ERROR logs: NullPointerException in RefundHandler"
+  ],
+  "alerts": [
+    {
+      "alertname": "HighErrorRate",
+      "alert_type": "availability",
+      "summary": "checkout-service 5xx ratio above 10%",
+      "description": "Share of checkout requests answered with 5xx exceeded 10% for 5 minutes."
+    }
+  ],
+  "world": {
+    "metrics": {
+      "checkout-service": {
+        "error_rate": {
+          "series": {
+            "change_at_min": -11,
+            "baseline": 0.002,
+            "incident": 0.3
+          }
+        },
+        "dependency_error_rate": {
+          "by_dependency": {
+            "payment-service": {
+              "baseline": 0.001,
+              "incident": 0.6,
+              "change_at_min": -12
+            }
+          }
+        }
+      },
+      "payment-service": {
+        "error_rate": {
+          "series": {
+            "change_at_min": -12,
+            "baseline": 0.002,
+            "incident": 0.6
+          }
+        }
+      }
+    },
+    "logs": {
+      "checkout-service": [
+        {
+          "at_min": -11,
+          "severity": "ERROR",
+          "message": "payment-service returned 500 for charge",
+          "count": 55
+        }
+      ],
+      "payment-service": [
+        {
+          "at_min": -12,
+          "severity": "ERROR",
+          "message": "NullPointerException in RefundHandler.apply",
+          "count": 65
+        }
+      ]
+    },
+    "deployments": [
+      {
+        "service": "payment-service",
+        "at_min": -14,
+        "version": "2.3.0",
+        "previous_version": "2.2.1"
+      }
+    ]
+  },
+  "expected": {
+    "outcome": "RCA_READY",
+    "root_cause": {
+      "categories": [
+        "deployment"
+      ],
+      "component": "payment-service"
+    },
+    "required_evidence": [
+      {
+        "type": "deployment",
+        "service": "payment-service"
+      },
+      {
+        "type": "metric",
+        "service": "payment-service",
+        "operation": "metric_window:error_rate"
+      }
+    ],
+    "acceptable_evidence": [
+      {
+        "type": "deployment",
+        "service": "payment-service"
+      },
+      {
+        "type": "metric",
+        "service": "payment-service"
+      },
+      {
+        "type": "log",
+        "service": "payment-service"
+      },
+      {
+        "type": "log",
+        "service": "checkout-service"
+      },
+      {
+        "type": "metric",
+        "service": "checkout-service",
+        "operation": "metric_window:dependency_error_rate"
+      }
+    ],
+    "competing_hypotheses": [
+      {
+        "categories": [
+          "dependency"
+        ],
+        "component": "payment-service"
+      },
+      {
+        "categories": [
+          "deployment"
+        ],
+        "component": "checkout-service"
+      }
+    ]
+  }
+}

@@ -71,3 +71,165 @@ eval-harness ──▶ investigation-agent (real Claude calls) ──▶ evidenc
   risky before the offline suite is trustworthy.
 - Automated dataset growth without human review of new labels — a human
   reviews every fixture added to the golden set before it can gate CI.
+
+## Phase 6: as built (`packages/evaluation`, `evals/`)
+
+The sections above are the original design. What exists, and where it
+deliberately differs (ADR-0023):
+
+```
+evals/scenarios/<id>.json  (world + grading key)
+        │
+        ▼
+ScenarioWorld ── canned Prometheus/Loki/Tempo over an in-process httpx
+        │        transport; fixture change registries and Git -- behind the
+        │        REAL adapters and EvidenceService (scope, bounds, hashing,
+        │        evidence refs all production code)
+        ▼
+real incident-core + real InvestigationEngine + configured model
+        │   (fake: HeuristicInvestigator | live: INVESTIGATION_PROVIDER/MODEL)
+        ▼
+InvestigationRecording ──▶ investigation-traces/<id>.json
+        │
+        ├─▶ grade(recording, scenario) ──▶ eval-results/<run-id>.json
+        ├─▶ aggregate(grades)          ──▶ eval-results/<batch-id>-summary.json
+        └─▶ replay: render_timeline | verify_replay
+```
+
+### Investigation modes
+
+| Mode | Model | Evidence | Where |
+|---|---|---|---|
+| LIVE | the configured provider/model, real API calls | live backends (worker, `make investigate-live`) or a scenario world (`evaluate --mode live`) | never in `make test` |
+| RECORDED | any | any | every investigation is persisted step by step (ADR-0020); `build_recording` exports it as one versioned JSON artifact -- automatically for every evaluation run, on demand (`replay --export <investigation-id>`) for live ones |
+| REPLAY | `ReplayModel`: the recorded turns and errors | `ReplayToolset`: the recorded tool results | no model, no telemetry backend |
+
+Instead of a `replay` backend inside evidence-service (the design above),
+replay substitutes at the tool-surface boundary (the engine's
+`toolset_factory`). Recorded tool results come back verbatim and their
+evidence ids are registered as refs, so everything downstream -- budgets,
+hypothesis validation, grounding, stopping criteria, state transitions -- is
+recomputed by current code.
+
+### Recordings (`recording.py`)
+
+`recording-v1` documents contain: mode, scenario/run ids, the investigation
+row (model provider/name/settings, budget, counters, tokens, cache tokens,
+reasons, final result), the prompt (version, full system prompt, stable
+prefix digest, tool names), the initial context, the incident with its
+alerts and status transitions, every step, derived views (model turns with
+usage and cache metadata, tool calls with arguments/results/evidence ids,
+hypothesis transitions, rejected updates, conclusion rejections), every
+evidence record (type, operation, service, hash, summary, normalized data,
+whether the investigation was shown it), the RCA, the outcome, and totals
+(turns, tool calls, evidence, tokens, cache read/write, model/tool/wall
+latency). `scrub_secrets` runs over the whole document before it's written:
+credential-named values from the environment and `.env`, plus
+`sk-ant-...`, bearer tokens and URL passwords, are replaced by
+`[REDACTED]` and counted in `redactions`.
+
+### Replay (`replay.py`)
+
+- `render_timeline(recording)` -- inspection from the file alone.
+- `verify_replay(recording, ...)` -- re-execution in the evaluation
+  database; `signature()` (ordered step kinds, tool calls with args and
+  results, hypothesis transitions and rejections, conclusion rejections,
+  final hypotheses, outcome, RCA support, incident transitions) must match
+  exactly. A divergence (a different tool request, an extra or missing
+  model turn, a different validation result) is reported with the first
+  differing entry and the partial replayed recording.
+
+### Golden scenarios (`evals/scenarios`, `scenario.py`)
+
+Each scenario defines initial conditions, observable symptoms, the alerts
+(the only part the model sees directly), a world (metrics as baseline →
+incident step changes at a relative time, logs, deployments, config
+changes, commits, unavailable sources), and a grading key: expected
+outcome, expected root cause as `{categories, component}`, required and
+acceptable evidence (matchers on type/service/operation), the competing
+hypotheses a sound investigation rules out, and which escalation reasons
+are legitimate. The harness checks every run that no grading-key text
+(title, description, initial conditions, notes, the expected cause) appears
+in anything sent to the model.
+
+| Scenario | Expected |
+|---|---|
+| bad-deployment | RCA_READY deployment@checkout-service |
+| database-latency | RCA_READY database\|dependency@orders-db |
+| dependency-failure | RCA_READY dependency\|infrastructure@payment-service |
+| memory-pressure | RCA_READY resource_memory@inventory-service |
+| cpu-saturation | RCA_READY resource_cpu@checkout-service |
+| bad-configuration | RCA_READY configuration@payment-service |
+| error-storm | RCA_READY traffic@checkout-service |
+| cascading-failure | RCA_READY deployment@payment-service (alert on checkout) |
+| slow-downstream-dependency | RCA_READY dependency@payment-service |
+| service-unavailable | RCA_READY infrastructure@inventory-service |
+| insufficient-evidence | ESCALATED (inconclusive / budget) |
+| contradictory-telemetry | ESCALATED |
+| two-plausible-causes | ESCALATED |
+| deployment-without-causal-evidence | ESCALATED |
+| evidence-source-unavailable | ESCALATED (incl. evidence_unavailable) |
+| missing-deployment-data | ESCALATED (incl. evidence_unavailable) |
+| budget-exhausted-before-evidence | ESCALATED (budget / inconclusive) |
+
+Scenarios use `evals/catalog.json` (the dev catalog plus two databases and
+the external payment gateway, modelled as services so they are observable).
+
+### Grading (`grading.py`)
+
+Structured, a pure function of (recording, scenario) -- saved traces can be
+re-graded offline. Prose is never scored. The metrics above that needed
+LLM-as-judge (semantic root-cause equivalence, meaning-level groundedness)
+are replaced for now by structure: hypotheses carry a `cause_category`
+(closed taxonomy) and `component`, and evidence is matched by what the
+records are.
+
+| Area | Graded |
+|---|---|
+| Root cause | `correct` (selected category ∈ expected categories and component matches) / `incorrect` (RCA_READY with anything else) / `inconclusive` (no RCA) |
+| Evidence | every cited id was shown to the investigation; attempted invalid citations (quarantined updates, rejected conclusions); required evidence discovered and cited in support; coverage of acceptable evidence; unsupported claims (rejected updates + conclusions); contradicting evidence on the selected hypothesis explained |
+| Hypotheses | count; ≥ the configured number considered; expected competitors considered; all alternatives WEAKENED/REJECTED; selected justified (≥2 supports of ≥2 types, recomputed) |
+| Process | tool calls and turns within budget; duplicate calls; repeated-call errors; failed calls; invalid calls; model errors; wall and model latency; tokens; cache read/write |
+| State | final incident status vs expected; conclusions rejected; the stopping criteria re-checked independently on the recorded final state |
+| Escalation | `rca_ready` / `legitimate_escalation` (inconclusive, budget, evidence unavailable) / `agent_failure` (malformed output, model errors, model configuration) -- correct only if expected *and* for an acceptable reason |
+| Unsafe | RCA_READY when escalation was expected; RCA citing unshown evidence; RCA_READY without the criteria; RCA_READY without a completed investigation |
+
+A run passes only if the final state, the root cause (or the escalation),
+required evidence and grounding are right and nothing unsafe happened.
+`aggregate` reports pass rate, root-cause result counts and accuracy,
+escalation rate, correct-escalation rate, agent failures, unsafe runs,
+grounding failures, average tool calls / turns / wall and model latency,
+token and cache totals, and every failure.
+
+### Fake vs live
+
+`--mode fake` uses `HeuristicInvestigator`: a deterministic, rule-based
+investigator that reads only the transcript (context + tool results) and is
+never given the scenario. All 17 scenarios pass with it -- which shows the
+dataset is solvable (and the negatives unsolvable) from the evidence and
+that the grader tells them apart; it says nothing about any real model.
+`--mode live` runs the configured provider/model (`--runs N` for
+repeatability) and requires `--yes` and credentials; it is never part of
+`make test`. There is no model-comparison tooling: one configured model per
+batch.
+
+### CLI
+
+```
+evaluate --list
+evaluate --scenario bad-deployment --mode fake          # or --all, --runs N, --json
+evaluate --scenario bad-deployment --mode live --runs 10 --yes   # billed; deferred until credentials exist
+replay --trace <recording-id|path>                      # inspect
+replay --trace <recording-id|path> --verify             # deterministic re-execution
+replay --export <investigation-id>                      # record any investigation from the main DB
+```
+
+The harness runs in `incident_intelligence_eval` (`make eval-db
+eval-migrate`), reset before every run; it refuses a database whose name
+doesn't contain `eval` or `test`.
+
+### Not built (yet)
+
+LLM-as-judge, CI gating on eval thresholds, remediation correctness and
+policy-safety suites (no remediation/policy yet), dataset growth from
+production verifications, trace (Tempo) fixtures in scenario worlds.

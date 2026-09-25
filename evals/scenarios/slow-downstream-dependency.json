@@ -1,0 +1,106 @@
+{
+  "id": "slow-downstream-dependency",
+  "title": "Payment service slow, checkout waits",
+  "kind": "positive",
+  "description": "payment-service p95 rises to 2.9s (no errors); checkout's p95 follows it to 3.1s. Nothing changed in checkout.",
+  "service": "checkout-service",
+  "initial_conditions": "All services healthy; no recent changes.",
+  "observable_symptoms": [
+    "payment p95 0.15s -> 2.9s",
+    "checkout p95 0.12s -> 3.1s",
+    "checkout WARNING logs: payment-service call slow"
+  ],
+  "alerts": [
+    {
+      "alertname": "HighP95Latency",
+      "alert_type": "latency",
+      "summary": "checkout-service p95 latency above 1s",
+      "description": "p95 latency of checkout requests exceeded 1s for 5 minutes."
+    }
+  ],
+  "world": {
+    "metrics": {
+      "checkout-service": {
+        "latency_p95": {
+          "series": {
+            "change_at_min": -10,
+            "baseline": 0.12,
+            "incident": 3.1
+          }
+        }
+      },
+      "payment-service": {
+        "latency_p95": {
+          "series": {
+            "change_at_min": -10,
+            "baseline": 0.15,
+            "incident": 2.9
+          }
+        }
+      }
+    },
+    "logs": {
+      "checkout-service": [
+        {
+          "at_min": -9,
+          "severity": "WARNING",
+          "message": "payment-service call slow: 2900ms",
+          "count": 50
+        }
+      ]
+    }
+  },
+  "expected": {
+    "outcome": "RCA_READY",
+    "root_cause": {
+      "categories": [
+        "dependency"
+      ],
+      "component": "payment-service"
+    },
+    "required_evidence": [
+      {
+        "type": "metric",
+        "service": "payment-service",
+        "operation": "service_health"
+      },
+      {
+        "type": "log",
+        "service": "checkout-service"
+      }
+    ],
+    "acceptable_evidence": [
+      {
+        "type": "metric",
+        "service": "payment-service"
+      },
+      {
+        "type": "metric",
+        "service": "checkout-service",
+        "operation": "metric_window:latency_p95"
+      },
+      {
+        "type": "log",
+        "service": "checkout-service"
+      },
+      {
+        "type": "deployment",
+        "service": "checkout-service"
+      }
+    ],
+    "competing_hypotheses": [
+      {
+        "categories": [
+          "deployment"
+        ],
+        "component": "checkout-service"
+      },
+      {
+        "categories": [
+          "resource_cpu"
+        ],
+        "component": "checkout-service"
+      }
+    ]
+  }
+}

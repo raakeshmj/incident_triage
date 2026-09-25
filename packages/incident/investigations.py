@@ -78,6 +78,7 @@ from packages.incident.db.models import (
     IncidentRow,
     InvestigationRow,
     InvestigationStepRow,
+    OutboxEventRow,
     RcaReportRow,
 )
 from packages.telemetry.logging import get_logger
@@ -363,6 +364,8 @@ class InvestigationCoreService:
                         status=update.status or HypothesisStatus.ACTIVE.value,
                         confidence=_decimal(update.confidence),
                         missing_evidence=update.missing_evidence or [],
+                        cause_category=update.cause_category,
+                        component=update.component,
                         created_at=now,
                         updated_at=now,
                     )
@@ -400,6 +403,8 @@ class InvestigationCoreService:
                 applied.append(
                     {
                         "key": update.key,
+                        "cause_category": existing.cause_category,
+                        "component": existing.component,
                         "from_status": from_status,
                         "to_status": existing.status,
                         "confidence": update.confidence,
@@ -493,6 +498,8 @@ class InvestigationCoreService:
                 "root_cause_hypothesis": {
                     "key": selected.key,
                     "description": selected.description,
+                    "cause_category": selected.cause_category,
+                    "component": selected.component,
                 },
                 # Derived by the application, not asserted by the model:
                 "supporting_evidence": [str(e) for e in selected_snapshot.supporting],
@@ -685,6 +692,28 @@ class InvestigationCoreService:
             else {"id": str(rca.id), "summary": rca.summary, "report": rca.report},
         }
 
+    def incident_transitions(self, incident_id: uuid.UUID) -> list[dict[str, Any]]:
+        """The incident's status changes, in order, from its outbox events --
+        part of a recorded investigation (state transitions it caused)."""
+        with self._session_factory() as session:
+            rows = session.execute(
+                select(OutboxEventRow)
+                .where(
+                    OutboxEventRow.aggregate_id == incident_id,
+                    OutboxEventRow.event_type == EVENT_TYPE_INCIDENT_STATUS_CHANGED,
+                )
+                .order_by(OutboxEventRow.sequence)
+            ).scalars()
+            return [
+                {
+                    "at": r.occurred_at.isoformat(),
+                    "from": r.payload.get("from_status"),
+                    "to": r.payload.get("to_status"),
+                    "reason": r.payload.get("reason"),
+                }
+                for r in rows
+            ]
+
     def latest_for_incident(self, incident_id: uuid.UUID) -> InvestigationView | None:
         with self._session_factory() as session:
             row = session.execute(
@@ -842,6 +871,8 @@ class InvestigationCoreService:
                     if lk.relation == "contradicts"
                 ],
                 missing_evidence=list(r.missing_evidence or []),
+                cause_category=r.cause_category,
+                component=r.component,
             )
             for r in rows
         }

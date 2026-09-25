@@ -144,3 +144,20 @@ the model's context via evidence. Mitigations:
 - Boundary tests: `packages/agents` imports no DB driver, Redis, HTTP
   client or `subprocess`; only `packages/agents/claude.py` imports
   `anthropic`.
+
+## Phase 6: credentials, recordings and prompt caching
+
+- Provider credentials are resolved only when a model is built
+  (`packages/agents/factory.py`), as `SecretStr`, kept out of `ModelSpec`
+  (which is persisted) and out of every log line.
+- Recordings (`packages/evaluation/recording.py`) are scrubbed before they
+  are written: values of credential-named variables from the environment
+  and `.env` (`*KEY`, `*TOKEN`, `*SECRET`, `*PASSWORD`), `sk-ant-...`
+  strings, bearer tokens and passwords in URLs become `[REDACTED]`
+  (counted in `redactions`) -- including anything a model might echo.
+- Prompt caching marks only the stable prefix (instructions + tool
+  definitions), which contains no incident data and no credentials;
+  incident context and tool results are never marked (ADR-0022).
+- The test suite overrides `ANTHROPIC_API_KEY` with a placeholder at
+  startup, so no test can use or print the real key. Tests that check
+  secret handling run in an isolated directory with fake values.

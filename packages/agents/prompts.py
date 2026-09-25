@@ -1,14 +1,19 @@
 """The investigation system prompt (versioned: `PROMPT_VERSION` in
 packages/agents/config.py is persisted with every investigation).
 
-Frozen text, rendered once per investigation from the stopping criteria the
-application actually enforces, so what the model is told and what is checked
-can't drift apart. It never mentions any particular failure mode or cause.
+This is the *stable* part of every request: frozen text rendered only from
+the stopping criteria the application enforces (so what the model is told
+and what is checked can't drift apart), with nothing per-incident or
+per-investigation in it -- no ids, timestamps, budgets or incident data. It
+is byte-identical across iterations and across investigations, which is
+what lets a provider cache it (packages/agents/claude.py). Everything that
+varies (incident context, budget, tool results, notices) goes in the
+transcript. It never mentions any particular failure mode or cause.
 """
 
 from __future__ import annotations
 
-from packages.domain.investigation import InvestigationBudget, StoppingCriteria
+from packages.domain.investigation import CAUSE_CATEGORIES, StoppingCriteria
 
 _TEMPLATE = """\
 You are the investigation component of an incident-response platform. You are \
@@ -41,6 +46,9 @@ unknown id is rejected as a whole.
 - Statuses: ACTIVE (being tested), SUPPORTED (evidence supports it), WEAKENED \
 (evidence cuts against it), REJECTED (evidence refutes it; needs contradicting \
 evidence; final).
+- When you create a hypothesis, classify it: cause_category (one of \
+{categories}) and component (the service or component it says is at fault). \
+Both are fixed once set; a different cause is a different hypothesis.
 
 When you may conclude (checked by the application; conclude_investigation is \
 rejected with the unmet criteria listed if any fail)
@@ -55,18 +63,17 @@ factual RCA section cites evidence ids; confidence >= {min_confidence}.
 - If the evidence cannot establish a root cause, call declare_inconclusive with \
 the specific evidence gaps. That is a valid, useful outcome.
 
-Budget: at most {max_iterations} turns and {max_tool_calls} evidence tool calls. \
-The remaining budget is reported to you as it runs down; conclude or declare \
+Budget: the incident context states your turn and evidence limits; the \
+remaining budget is reported to you as it runs down. Conclude or declare \
 inconclusive before it is exhausted.
 """
 
 
-def system_prompt(criteria: StoppingCriteria, budget: InvestigationBudget) -> str:
+def system_prompt(criteria: StoppingCriteria) -> str:
     return _TEMPLATE.format(
         min_hypotheses=criteria.min_hypotheses_considered,
         min_support=criteria.min_supporting_evidence,
         min_types=criteria.min_supporting_evidence_types,
         min_confidence=criteria.min_confidence,
-        max_iterations=budget.max_iterations,
-        max_tool_calls=budget.max_tool_calls,
+        categories=", ".join(CAUSE_CATEGORIES),
     )

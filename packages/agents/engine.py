@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
-from packages.agents.config import ModelSpec
+from packages.agents.config import ModelConfigError, ModelSpec
 from packages.agents.context import build_context, render_context
 from packages.agents.factory import ModelFactory
 from packages.agents.model import (
@@ -38,9 +38,15 @@ from packages.agents.model import (
     ObservationEntry,
     ToolResultEntry,
     TranscriptEntry,
+    stable_prefix_digest,
 )
 from packages.agents.prompts import system_prompt
-from packages.agents.toolset import EVIDENCE_TOOL_NAMES, GET_INCIDENT_EVIDENCE, InvestigationToolset
+from packages.agents.toolset import (
+    EVIDENCE_TOOL_NAMES,
+    GET_INCIDENT_EVIDENCE,
+    InvestigationToolset,
+    ToolOutcome,
+)
 from packages.domain.errors import LeaseLostError
 from packages.domain.investigation import (
     ACTION_STEP_KINDS,
@@ -70,6 +76,17 @@ metrics = get_metrics()
 
 # Tool failures that mean the evidence path itself is down (vs. a bad query).
 _BACKEND_FAILURES = frozenset({"backend_unavailable", "backend_timeout"})
+
+
+class Toolset(Protocol):
+    """What the engine needs from its tool surface. `InvestigationToolset`
+    (live/fixture evidence) and the evaluation replay toolset implement it."""
+
+    def execute(self, tool: str, arguments: dict[str, Any]) -> ToolOutcome: ...
+
+
+# Built once per run from the loaded state (ids, budget, prior calls).
+ToolsetFactory = Callable[[InvestigationState], Toolset]
 
 
 class InvestigationGateway(Protocol):
@@ -162,7 +179,7 @@ class InvestigationEngine:
         *,
         gateway: InvestigationGateway,
         incidents: IncidentReader,
-        evidence: EvidenceService,
+        evidence: EvidenceService | None,
         catalog: ServiceCatalog,
         model_factory: ModelFactory,
         owner: str,
@@ -172,6 +189,7 @@ class InvestigationEngine:
         tool_retry_backoff_seconds: float = 0.5,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         sleep: Callable[[float], None] = time.sleep,
+        toolset_factory: ToolsetFactory | None = None,
     ) -> None:
         self._gateway = gateway
         self._incidents = incidents
@@ -185,6 +203,7 @@ class InvestigationEngine:
         self._tool_backoff = tool_retry_backoff_seconds
         self._clock = clock
         self._sleep = sleep
+        self._toolset_factory = toolset_factory
 
     # --- entry point -----------------------------------------------------------
 
@@ -211,19 +230,27 @@ class InvestigationEngine:
     def _run(self, state: InvestigationState) -> InvestigationStatus:
         inv = state.investigation
         spec = ModelSpec.from_persisted(inv.model_provider, inv.model_name, inv.model_settings)
-        model = self._model_factory(spec)
+        try:
+            model = self._model_factory(spec)
+        except ModelConfigError as exc:
+            # e.g. no credentials for the configured provider: a visible,
+            # terminal outcome for this investigation -- not a worker crash.
+            self._escalate(
+                state,
+                inv.iteration_count,
+                InvestigationStatus.FAILED,
+                "model_config_error",
+                str(exc)[:300],
+            )
         if not any(s.kind == StepKind.CONTEXT for s in state.steps):
             self._record_context(state)
-        toolset = InvestigationToolset(
-            self._evidence,
-            incident_id=inv.incident_id,
-            investigation_id=inv.id,
-            max_tool_calls=inv.budget.max_tool_calls,
-            max_identical_calls=inv.budget.max_identical_tool_calls,
-            prior_calls=_prior_calls(state.steps),
-            retry_backoff_seconds=self._tool_backoff,
+            state = self._gateway.load_state(inv.id)
+        toolset = (
+            self._toolset_factory(state)
+            if self._toolset_factory is not None
+            else self._live_toolset(state)
         )
-        system = system_prompt(self._criteria, inv.budget)
+        system = system_prompt(self._criteria)
         definitions = InvestigationToolset.definitions()
 
         while True:
@@ -258,6 +285,7 @@ class InvestigationEngine:
                     "usage": turn.usage,
                     "served_model": turn.served_model,
                     "provider_payload": turn.provider_payload,
+                    "cache": turn.cache,
                 },
                 latency_ms=turn.latency_ms,
                 usage=turn.usage,
@@ -336,7 +364,7 @@ class InvestigationEngine:
         decision: InvestigationDecision,
         iteration: int,
         final_reason: str | None,
-        toolset: InvestigationToolset,
+        toolset: Toolset,
         stop_reason: str = "tool_use",
     ) -> None:
         inv = state.investigation
@@ -493,7 +521,7 @@ class InvestigationEngine:
 
     # --- resumability ------------------------------------------------------------
 
-    def _resolve_pending(self, state: InvestigationState, toolset: InvestigationToolset) -> bool:
+    def _resolve_pending(self, state: InvestigationState, toolset: Toolset) -> bool:
         """After a crash between a model turn and its tool results, act on
         the unanswered calls from the persisted turn (never re-asking the
         model). Returns True if anything was processed."""
@@ -606,6 +634,20 @@ class InvestigationEngine:
             return f"evidence item budget {budget.max_evidence_items} spent"
         return None
 
+    def _live_toolset(self, state: InvestigationState) -> InvestigationToolset:
+        inv = state.investigation
+        if self._evidence is None:
+            raise ValueError("an engine without an evidence service needs a toolset_factory")
+        return InvestigationToolset(
+            self._evidence,
+            incident_id=inv.incident_id,
+            investigation_id=inv.id,
+            max_tool_calls=inv.budget.max_tool_calls,
+            max_identical_calls=inv.budget.max_identical_tool_calls,
+            prior_calls=_prior_calls(state.steps),
+            retry_backoff_seconds=self._tool_backoff,
+        )
+
     # --- persistence helpers -----------------------------------------------------
 
     def _record_context(self, state: InvestigationState) -> None:
@@ -622,7 +664,11 @@ class InvestigationEngine:
                 "context": context,
                 "evidence_ids": [str(r.id) for r in refs],
                 "tools": [t.name for t in InvestigationToolset.definitions()],
-                "system_prompt": system_prompt(self._criteria, inv.budget),
+                "system_prompt": system_prompt(self._criteria),
+                "prompt_version": inv.model_settings.get("prompt_version"),
+                "stable_prefix_digest": stable_prefix_digest(
+                    system_prompt(self._criteria), InvestigationToolset.definitions()
+                ),
                 "model": {"provider": inv.model_provider, "name": inv.model_name},
             },
             last_action="context built",

@@ -1,0 +1,119 @@
+{
+  "id": "error-storm",
+  "title": "Traffic surge and retry storm exhaust checkout",
+  "kind": "positive",
+  "description": "A marketing push multiplies checkout traffic 8x; clients retry failures, the connection pool is exhausted and 22% of requests fail.",
+  "service": "checkout-service",
+  "initial_conditions": "checkout-service at ~50 req/s; no changes.",
+  "observable_symptoms": [
+    "request rate 50 -> 420 req/s",
+    "error rate 0.2% -> 22%",
+    "ERROR logs: connection pool exhausted; WARNING: retrying request"
+  ],
+  "alerts": [
+    {
+      "alertname": "HighErrorRate",
+      "alert_type": "availability",
+      "summary": "checkout-service 5xx ratio above 10%",
+      "description": "Share of checkout requests answered with 5xx exceeded 10% for 5 minutes."
+    }
+  ],
+  "world": {
+    "metrics": {
+      "checkout-service": {
+        "request_rate": {
+          "series": {
+            "change_at_min": -10,
+            "baseline": 50,
+            "incident": 420
+          }
+        },
+        "error_rate": {
+          "series": {
+            "change_at_min": -9,
+            "baseline": 0.002,
+            "incident": 0.22
+          }
+        },
+        "cpu_usage": {
+          "series": {
+            "change_at_min": -10,
+            "baseline": 0.3,
+            "incident": 0.7
+          }
+        },
+        "latency_p95": {
+          "series": {
+            "change_at_min": -9,
+            "baseline": 0.12,
+            "incident": 0.9
+          }
+        }
+      }
+    },
+    "logs": {
+      "checkout-service": [
+        {
+          "at_min": -9,
+          "severity": "ERROR",
+          "message": "connection pool exhausted (max=50)",
+          "count": 50
+        },
+        {
+          "at_min": -9,
+          "severity": "WARNING",
+          "message": "retrying request (attempt 3)",
+          "count": 40
+        }
+      ]
+    }
+  },
+  "expected": {
+    "outcome": "RCA_READY",
+    "root_cause": {
+      "categories": [
+        "traffic"
+      ],
+      "component": "checkout-service"
+    },
+    "required_evidence": [
+      {
+        "type": "metric",
+        "service": "checkout-service",
+        "operation": "metric_window:request_rate"
+      },
+      {
+        "type": "log",
+        "service": "checkout-service"
+      }
+    ],
+    "acceptable_evidence": [
+      {
+        "type": "metric",
+        "service": "checkout-service"
+      },
+      {
+        "type": "log",
+        "service": "checkout-service"
+      },
+      {
+        "type": "deployment",
+        "service": "checkout-service"
+      }
+    ],
+    "competing_hypotheses": [
+      {
+        "categories": [
+          "deployment"
+        ],
+        "component": "checkout-service"
+      },
+      {
+        "categories": [
+          "resource_cpu"
+        ],
+        "component": "checkout-service"
+      }
+    ]
+  }
+}

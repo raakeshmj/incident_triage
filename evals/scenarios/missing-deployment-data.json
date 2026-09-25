@@ -1,0 +1,62 @@
+{
+  "id": "missing-deployment-data",
+  "title": "Change registries unreachable",
+  "kind": "negative",
+  "description": "The deployment and config registries are unreachable; errors rose but whether anything changed cannot be established, and nothing else points at a cause.",
+  "service": "checkout-service",
+  "initial_conditions": "Change registries unreachable.",
+  "observable_symptoms": [
+    "deployment/config queries fail",
+    "error rate 0.2% -> 20%",
+    "generic ERROR logs"
+  ],
+  "alerts": [
+    {
+      "alertname": "HighErrorRate",
+      "alert_type": "availability",
+      "summary": "checkout-service 5xx ratio above 10%",
+      "description": "Share of checkout requests answered with 5xx exceeded 10% for 5 minutes."
+    }
+  ],
+  "world": {
+    "unavailable": [
+      "changes"
+    ],
+    "metrics": {
+      "checkout-service": {
+        "error_rate": {
+          "series": {
+            "change_at_min": -10,
+            "baseline": 0.002,
+            "incident": 0.2
+          }
+        }
+      }
+    },
+    "logs": {
+      "checkout-service": [
+        {
+          "at_min": -9,
+          "severity": "ERROR",
+          "message": "request failed: internal error",
+          "count": 40
+        }
+      ]
+    }
+  },
+  "expected": {
+    "outcome": "ESCALATED",
+    "acceptable_escalation_reasons": [
+      "inconclusive",
+      "evidence_unavailable",
+      "budget_exhausted"
+    ],
+    "required_evidence": [
+      {
+        "type": "metric",
+        "service": "checkout-service",
+        "operation": "metric_window:error_rate"
+      }
+    ]
+  }
+}

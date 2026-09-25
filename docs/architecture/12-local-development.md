@@ -107,3 +107,22 @@ Nothing in `make test` calls a model API; tests use
 API are configurable (`POSTGRES_PORT`, `REDIS_PORT`, `GRAFANA_PORT`,
 `API_PORT`) for machines where the defaults are taken; Alertmanager's
 webhook target follows `ALERTMANAGER_WEBHOOK_URL`.
+
+## Phase 6: evaluation and replay locally
+
+```
+make eval-db eval-migrate            # once: the disposable evaluation database
+make eval                            # every golden scenario, fake mode, no credentials
+make eval SCENARIO=bad-deployment RUNS=3
+evaluate --list | --scenario <id> [--mode fake|live] [--runs N] [--json]
+make replay TRACE=<recording-id> [VERIFY=1]
+replay --export <investigation-id>   # record any investigation from the main DB
+```
+
+Outputs: `investigation-traces/<investigation-id>.json` (recordings) and
+`eval-results/<run-id>.json` + `<batch-id>-summary.json` (both gitignored).
+`evaluate --mode live` / `make eval-live` call the configured provider and
+need credentials plus `--yes`; they are deferred until a credential exists.
+The provider and model are placeholders (`INVESTIGATION_PROVIDER`,
+`INVESTIGATION_MODEL`); nothing else needs a key, and pytest replaces
+`ANTHROPIC_API_KEY` with a placeholder for the whole run.

@@ -1,0 +1,79 @@
+{
+  "id": "budget-exhausted-before-evidence",
+  "title": "Dependency outage under a tiny budget",
+  "kind": "negative",
+  "description": "The same world as a payment-service outage, but the investigation may make only 4 evidence tool calls in 3 turns -- not enough to establish a cause. Correct behaviour is to stop and escalate, not to guess.",
+  "service": "checkout-service",
+  "initial_conditions": "payment-service down; investigation budget: 3 turns, 4 evidence tool calls.",
+  "observable_symptoms": [
+    "payment-service down",
+    "checkout errors"
+  ],
+  "alerts": [
+    {
+      "alertname": "HighErrorRate",
+      "alert_type": "availability",
+      "summary": "checkout-service 5xx ratio above 10%",
+      "description": "Share of checkout requests answered with 5xx exceeded 10% for 5 minutes."
+    }
+  ],
+  "world": {
+    "metrics": {
+      "checkout-service": {
+        "error_rate": {
+          "series": {
+            "change_at_min": -10,
+            "baseline": 0.002,
+            "incident": 0.45
+          }
+        },
+        "dependency_error_rate": {
+          "by_dependency": {
+            "payment-service": {
+              "baseline": 0.001,
+              "incident": 0.95,
+              "change_at_min": -10
+            }
+          }
+        }
+      },
+      "payment-service": {
+        "availability": {
+          "series": {
+            "change_at_min": -10,
+            "baseline": 1,
+            "incident": 0
+          }
+        },
+        "error_rate": {
+          "series": {
+            "change_at_min": -10,
+            "baseline": 0.002,
+            "incident": 1.0
+          }
+        }
+      }
+    },
+    "logs": {
+      "checkout-service": [
+        {
+          "at_min": -9,
+          "severity": "ERROR",
+          "message": "payment-service call failed: connection refused",
+          "count": 80
+        }
+      ]
+    }
+  },
+  "expected": {
+    "outcome": "ESCALATED",
+    "acceptable_escalation_reasons": [
+      "budget_exhausted",
+      "inconclusive"
+    ]
+  },
+  "budget": {
+    "max_iterations": 3,
+    "max_tool_calls": 4
+  }
+}

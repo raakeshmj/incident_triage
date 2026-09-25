@@ -102,6 +102,35 @@ class StoppingCriteria(BaseModel):
 # --- model-facing schemas ---------------------------------------------------------
 
 _KEY = r"^[A-Za-z][A-Za-z0-9_-]{0,15}$"
+_COMPONENT = r"^[a-z0-9][a-z0-9._-]{0,62}$"
+
+# A small, generic cause taxonomy. It names *kinds* of cause, never any
+# incident's answer, and makes the selected root cause gradeable as
+# structured data (category + component) instead of by prose similarity.
+CAUSE_CATEGORIES = (
+    "deployment",
+    "configuration",
+    "code_change",
+    "dependency",
+    "database",
+    "resource_cpu",
+    "resource_memory",
+    "traffic",
+    "infrastructure",
+    "other",
+)
+CauseCategory = Literal[
+    "deployment",
+    "configuration",
+    "code_change",
+    "dependency",
+    "database",
+    "resource_cpu",
+    "resource_memory",
+    "traffic",
+    "infrastructure",
+    "other",
+]
 EvidenceIdList = list[uuid.UUID]
 
 
@@ -119,6 +148,17 @@ class HypothesisUpdate(_Strict):
         min_length=1,
         max_length=500,
         description="Required when creating a hypothesis. A claim to test, not a conclusion.",
+    )
+    cause_category: CauseCategory | None = Field(
+        default=None,
+        description="Required when creating a hypothesis: the kind of cause it proposes. "
+        "Fixed once set.",
+    )
+    component: str | None = Field(
+        default=None,
+        pattern=_COMPONENT,
+        description="Required when creating a hypothesis: the service or component "
+        "the hypothesis says is at fault. Fixed once set.",
     )
     status: Literal["ACTIVE", "SUPPORTED", "WEAKENED", "REJECTED"] | None = None
     confidence: float | None = Field(default=None, ge=0, le=1)
@@ -363,11 +403,15 @@ class HypothesisSnapshot:
     supporting: list[uuid.UUID] = field(default_factory=list)
     contradicting: list[uuid.UUID] = field(default_factory=list)
     missing_evidence: list[str] = field(default_factory=list)
+    cause_category: str | None = None
+    component: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
             "key": self.key,
             "description": self.description,
+            "cause_category": self.cause_category,
+            "component": self.component,
             "status": self.status.value,
             "confidence": self.confidence,
             "supporting_evidence_ids": [str(e) for e in self.supporting],
@@ -396,7 +440,13 @@ def check_hypothesis_update(
     if existing is None:
         if not update.description:
             problems.append("description is required when creating a hypothesis")
+        if update.cause_category is None or update.component is None:
+            problems.append("cause_category and component are required when creating a hypothesis")
     else:
+        for name in ("cause_category", "component"):
+            given, fixed = getattr(update, name), getattr(existing, name)
+            if given is not None and fixed is not None and given != fixed:
+                problems.append(f"{name} is fixed once set (it is {fixed!r})")
         if existing.status in (HypothesisStatus.REJECTED, HypothesisStatus.SELECTED):
             problems.append(f"hypothesis {update.key} is {existing.status.value} and cannot change")
     if update.status == "REJECTED":

@@ -422,3 +422,15 @@ Immutability is a `BEFORE UPDATE OR DELETE` trigger calling
 `incident_core.reject_row_mutation()`, so the audit trail can't be edited
 even by incident-core's own role. Every write command locks the
 investigation row and checks the lease owner (fencing, ADR-0020).
+
+## Phase 6: hypothesis cause (migration `0005_hypothesis_cause`) and the evaluation database
+
+- `hypotheses.cause_category` (checked against the closed taxonomy) and
+  `hypotheses.component`: required by incident-core when a hypothesis is
+  created, fixed afterwards; nullable only for rows written before 0005.
+- `incident_intelligence_eval`: a second database on the same server with
+  the same schemas, roles and grants
+  (`infrastructure/postgres/init/02-eval-database.sql`, `make eval-db`),
+  migrated by the same Alembic histories (`make eval-migrate`). The
+  evaluation harness truncates it before every run; it holds nothing that
+  matters between runs.

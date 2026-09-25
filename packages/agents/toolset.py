@@ -101,8 +101,21 @@ def compact(value: Any, limit: int = MAX_RESULT_CHARS) -> str:
     return text
 
 
+def _is_series(node: list[Any]) -> bool:
+    """[[timestamp, value], ...] -- a metric series."""
+    return bool(node) and all(
+        isinstance(p, list) and len(p) == 2 and isinstance(p[0], str) for p in node
+    )
+
+
 def _trim_lists(node: Any, keep: int) -> Any:
     if isinstance(node, list):
+        if _is_series(node) and len(node) > keep:
+            # Evenly spaced samples, first and last included: a head-only cut
+            # would keep just the oldest points and hide when a change began.
+            step = (len(node) - 1) / max(keep - 1, 1)
+            picks = sorted({round(i * step) for i in range(keep)})
+            return [node[i] for i in picks] + [f"... downsampled from {len(node)} points"]
         head = [_trim_lists(v, keep) for v in node[:keep]]
         return head + ([f"... {len(node) - keep} more"] if len(node) > keep else [])
     if isinstance(node, dict):

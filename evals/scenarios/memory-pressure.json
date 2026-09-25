@@ -1,0 +1,111 @@
+{
+  "id": "memory-pressure",
+  "title": "Inventory service leaks memory until it errors",
+  "kind": "positive",
+  "description": "inventory-service memory climbs from 130MB to 245MB (a cache without eviction); allocation failures and long GC pauses cause 15% errors.",
+  "service": "inventory-service",
+  "initial_conditions": "inventory-service healthy at ~130MB resident; inventory-db healthy.",
+  "observable_symptoms": [
+    "inventory memory 130MB -> 245MB",
+    "inventory error rate 0.2% -> 15%",
+    "ERROR logs: MemoryError; WARNING: GC pause"
+  ],
+  "alerts": [
+    {
+      "alertname": "HighErrorRate",
+      "alert_type": "availability",
+      "summary": "inventory-service 5xx ratio above 10%",
+      "description": "Share of inventory requests answered with 5xx exceeded 10% for 5 minutes."
+    }
+  ],
+  "world": {
+    "metrics": {
+      "inventory-service": {
+        "memory_usage": {
+          "series": {
+            "change_at_min": -20,
+            "baseline": 136314880,
+            "incident": 256901120
+          }
+        },
+        "error_rate": {
+          "series": {
+            "change_at_min": -12,
+            "baseline": 0.002,
+            "incident": 0.15
+          }
+        }
+      }
+    },
+    "logs": {
+      "inventory-service": [
+        {
+          "at_min": -12,
+          "severity": "ERROR",
+          "message": "MemoryError: cannot allocate buffer for stock snapshot",
+          "count": 30
+        },
+        {
+          "at_min": -15,
+          "severity": "WARNING",
+          "message": "GC pause 1800ms",
+          "count": 12
+        }
+      ]
+    }
+  },
+  "expected": {
+    "outcome": "RCA_READY",
+    "root_cause": {
+      "categories": [
+        "resource_memory"
+      ],
+      "component": "inventory-service"
+    },
+    "required_evidence": [
+      {
+        "type": "metric",
+        "service": "inventory-service",
+        "operation": "metric_window:memory_usage"
+      },
+      {
+        "type": "log",
+        "service": "inventory-service"
+      }
+    ],
+    "acceptable_evidence": [
+      {
+        "type": "metric",
+        "service": "inventory-service"
+      },
+      {
+        "type": "log",
+        "service": "inventory-service"
+      },
+      {
+        "type": "deployment",
+        "service": "inventory-service"
+      },
+      {
+        "type": "metric",
+        "service": "inventory-db",
+        "operation": "service_health"
+      }
+    ],
+    "competing_hypotheses": [
+      {
+        "categories": [
+          "dependency",
+          "database"
+        ],
+        "component": "inventory-db"
+      },
+      {
+        "categories": [
+          "deployment"
+        ],
+        "component": "inventory-service"
+      }
+    ]
+  }
+}

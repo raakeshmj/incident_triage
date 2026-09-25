@@ -1,6 +1,6 @@
 .PHONY: install fmt lint typecheck test test-unit test-integration test-e2e test-stack \
         infra-up infra-up-full infra-down infra-logs migrate migrate-down run-api run-worker \
-        run-consumer run-evidence run-investigation-worker investigate-live send-alert seed-changes chaos-list chaos-status
+        run-consumer run-evidence run-investigation-worker investigate-live eval-db eval-migrate eval eval-live replay send-alert seed-changes chaos-list chaos-status
 
 # Every target sees .env (Alembic's env.py and the CLIs read os.environ).
 -include .env
@@ -84,6 +84,27 @@ run-investigation-worker:
 # credentials). Spends real tokens -- never part of `make test`.
 investigate-live:
 	python scripts/manual_investigation.py
+
+# Phase 6: evaluation + replay (packages/evaluation). A separate, disposable
+# database: the harness resets it before every run.
+eval-db:
+	docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U $${POSTGRES_SUPERUSER:-postgres} -d $${POSTGRES_DB:-incident_intelligence} < infrastructure/postgres/init/02-eval-database.sql
+
+eval-migrate:
+	INCIDENT_CORE_DATABASE_URL=$$EVAL_INCIDENT_CORE_DATABASE_URL alembic upgrade head
+	EVIDENCE_DATABASE_URL=$$EVAL_EVIDENCE_DATABASE_URL alembic -n evidence upgrade head
+
+# Offline (heuristic fake investigator, no credentials):  make eval SCENARIO=bad-deployment
+eval:
+	evaluate $(if $(SCENARIO),--scenario $(SCENARIO),--all) --mode fake --runs $${RUNS:-1}
+
+# Real provider/model from INVESTIGATION_PROVIDER / INVESTIGATION_MODEL. Billed.
+eval-live:
+	evaluate --scenario $${SCENARIO:?set SCENARIO=<id>} --mode live --runs $${RUNS:-1} --yes
+
+# make replay TRACE=<recording id or path> [VERIFY=1]
+replay:
+	replay --trace $${TRACE:?set TRACE=<recording id>} $(if $(VERIFY),--verify,)
 
 # Phase 4: evidence-service's internal API (tools + evidence replay/audit).
 run-evidence:

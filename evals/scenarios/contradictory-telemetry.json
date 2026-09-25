@@ -1,0 +1,62 @@
+{
+  "id": "contradictory-telemetry",
+  "title": "Error metric up, error logs silent",
+  "kind": "negative",
+  "description": "The checkout error-rate metric reports 25% errors, but there are no error logs, latency is flat and every dependency is healthy -- the telemetry contradicts itself (a metrics-pipeline fault is as likely as a real failure).",
+  "service": "checkout-service",
+  "initial_conditions": "All services healthy; no changes.",
+  "observable_symptoms": [
+    "error_rate metric 0.2% -> 25%",
+    "zero ERROR log lines",
+    "latency flat"
+  ],
+  "alerts": [
+    {
+      "alertname": "HighErrorRate",
+      "alert_type": "availability",
+      "summary": "checkout-service 5xx ratio above 10%",
+      "description": "Share of checkout requests answered with 5xx exceeded 10% for 5 minutes."
+    }
+  ],
+  "world": {
+    "metrics": {
+      "checkout-service": {
+        "error_rate": {
+          "series": {
+            "change_at_min": -10,
+            "baseline": 0.002,
+            "incident": 0.25
+          }
+        }
+      }
+    },
+    "logs": {
+      "checkout-service": [
+        {
+          "at_min": -6,
+          "severity": "INFO",
+          "message": "request completed",
+          "count": 60
+        }
+      ]
+    }
+  },
+  "expected": {
+    "outcome": "ESCALATED",
+    "acceptable_escalation_reasons": [
+      "inconclusive",
+      "budget_exhausted"
+    ],
+    "required_evidence": [
+      {
+        "type": "metric",
+        "service": "checkout-service",
+        "operation": "metric_window:error_rate"
+      },
+      {
+        "type": "log",
+        "service": "checkout-service"
+      }
+    ]
+  }
+}

@@ -81,6 +81,16 @@ def test_compact_bounds_what_the_model_sees():
     assert "e1" in text
 
 
+def test_compacted_series_keep_their_shape_first_and_last_points():
+    points = [[f"t{i:02d}", 0.01 if i < 50 else 0.3] for i in range(60)]
+    big = {"evidence_id": "e1", "data": {"series": [{"points": points}], "pad": "x" * 2500}}
+    text = compact(big, limit=3000)
+    kept = json.loads(text)["data"]["series"][0]["points"]
+    assert kept[0] == ["t00", 0.01] and kept[-2] == ["t59", 0.3]  # last item is the note
+    assert "downsampled from 60 points" in kept[-1]
+    assert any(p[1] == 0.3 for p in kept[:-1])  # the change is still visible
+
+
 def test_transcript_is_a_pure_function_of_the_trace():
     steps = [
         _step(1, StepKind.CONTEXT, {"context": {"incident": {"service": "s"}}}, iteration=0),

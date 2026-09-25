@@ -11,8 +11,15 @@ the response back -- it does not validate, persist, or decide anything.
   some current models, and the prompt tells the model to act through tools).
 - Adaptive thinking and effort are sent only when the model's profile says
   the API accepts them (packages/agents/config.py).
-- Prompt caching: top-level `cache_control` caches the growing transcript,
-  so each iteration pays full price only for what's new.
+- Prompt caching (Anthropic's official `cache_control`): one explicit
+  ephemeral breakpoint on the system block. Render order is tools -> system
+  -> messages, so that caches exactly the stable prefix -- tool definitions
+  plus the frozen system prompt -- shared by every iteration of every
+  investigation. Nothing in `messages` is marked: incident context, tool
+  results and notices are dynamic and are never cached. Below the model's
+  minimum cacheable length the API silently doesn't cache; the usage fields
+  (`cache_read_input_tokens` / `cache_creation_input_tokens`) are the only
+  ground truth and are recorded on every turn.
 - Assistant turns are replayed from the stored content blocks unchanged,
   thinking blocks included, as the API requires across tool use.
 """
@@ -25,7 +32,7 @@ from typing import Any
 
 import anthropic
 
-from packages.agents.config import ModelSpec
+from packages.agents.config import ModelSpec, profile_for
 from packages.agents.model import (
     AssistantEntry,
     ContextEntry,
@@ -105,17 +112,23 @@ class ClaudeInvestigationModel:
             api_key=api_key, timeout=spec.timeout_seconds, max_retries=spec.max_retries
         )
 
+    @property
+    def caches_stable_prefix(self) -> bool:
+        return self.spec.prompt_cache == "stable_prefix"
+
     def build_request(self, request: DecisionRequest) -> dict[str, Any]:
+        system_block: dict[str, Any] = {"type": "text", "text": request.system_prompt}
+        if self.caches_stable_prefix:
+            system_block["cache_control"] = {"type": "ephemeral"}
         kwargs: dict[str, Any] = {
             "model": self.spec.model,
             "max_tokens": self.spec.max_tokens,
-            "system": request.system_prompt,
+            "system": [system_block],
             "tools": [
                 {"name": t.name, "description": t.description, "input_schema": t.input_schema}
                 for t in request.tools
             ],
             "messages": render_messages(request),
-            "cache_control": {"type": "ephemeral"},
         }
         if self.spec.thinking == "adaptive":
             kwargs["thinking"] = {"type": "adaptive"}
@@ -153,6 +166,8 @@ class ClaudeInvestigationModel:
         )
         usage = response.usage
         stop = response.stop_reason
+        read = usage.cache_read_input_tokens or 0
+        written = usage.cache_creation_input_tokens or 0
         return ModelTurn(
             text=text,
             actions=actions,
@@ -160,8 +175,8 @@ class ClaudeInvestigationModel:
             usage={
                 "input_tokens": usage.input_tokens,
                 "output_tokens": usage.output_tokens,
-                "cache_read_input_tokens": usage.cache_read_input_tokens or 0,
-                "cache_creation_input_tokens": usage.cache_creation_input_tokens or 0,
+                "cache_read_input_tokens": read,
+                "cache_creation_input_tokens": written,
             },
             provider_payload={
                 "content": content,
@@ -170,7 +185,23 @@ class ClaudeInvestigationModel:
             },
             served_model=response.model,
             latency_ms=latency_ms,
+            cache=self.cache_info(request, read=read, written=written),
         )
+
+    def cache_info(self, request: DecisionRequest, *, read: int, written: int) -> dict[str, Any]:
+        profile = profile_for(self.spec.provider, self.spec.model)
+        return {
+            "requested": self.caches_stable_prefix,
+            "supported": profile.prompt_caching,
+            "strategy": "stable_prefix" if self.caches_stable_prefix else "none",
+            "breakpoints": ["system"] if self.caches_stable_prefix else [],
+            "prefix_digest": request.stable_prefix_digest(),
+            "prefix_chars": request.stable_prefix_chars(),
+            "min_cacheable_tokens": profile.min_cacheable_tokens,
+            "read_tokens": read,
+            "write_tokens": written,
+            "hit": read > 0,
+        }
 
 
 def _arguments(value: Any) -> dict[str, Any]:

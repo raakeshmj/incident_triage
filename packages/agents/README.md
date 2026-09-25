@@ -24,3 +24,10 @@ hypotheses and a conclusion that incident-core validates. Design:
 What this package must never do (enforced by `tests/unit/test_boundaries.py`):
 import a DB driver, Redis, an HTTP client or `subprocess`; mutate
 production; accept an incident id from the model.
+
+Phase 6: `factory.PROVIDERS` is the provider registry (credentials resolved
+lazily; `INVESTIGATION_PROVIDER` / `INVESTIGATION_MODEL` are placeholders),
+`config.PROVIDER_PROFILES` carries per-model capabilities including prompt
+caching, and `claude.py` caches only the stable prefix (system prompt +
+tool definitions) -- ADR-0022. `model.DecisionRequest` documents which of
+its fields are stable and which dynamic.

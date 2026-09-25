@@ -21,6 +21,10 @@ dependencies = [
     "anthropic>=1.8,<2.0",
 ]
 
+[project.scripts]
+evaluate = "packages.evaluation.cli:evaluate_main"
+replay = "packages.evaluation.cli:replay_main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.2,<9.0",

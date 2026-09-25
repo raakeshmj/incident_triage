@@ -1,0 +1,11 @@
+{
+  "_comment": "Service catalog for the golden evaluation scenarios (packages/evaluation). Same format and scoping rules as infrastructure/evidence/service-catalog.json: an incident on S may gather evidence about S and its direct neighbours only. Databases and the external payment gateway are modelled as services so their health and metrics are observable.",
+  "services": {
+    "checkout-service": {"dependencies": ["payment-service", "inventory-service", "orders-db"], "repo_paths": ["services/checkout-service/"]},
+    "payment-service": {"dependencies": ["payment-gateway"], "repo_paths": ["services/payment-service/"]},
+    "inventory-service": {"dependencies": ["inventory-db"], "repo_paths": ["services/inventory-service/"]},
+    "orders-db": {"dependencies": [], "repo_paths": ["infra/orders-db/"]},
+    "inventory-db": {"dependencies": [], "repo_paths": ["infra/inventory-db/"]},
+    "payment-gateway": {"dependencies": [], "repo_paths": ["clients/payment-gateway/"]}
+  }
+}

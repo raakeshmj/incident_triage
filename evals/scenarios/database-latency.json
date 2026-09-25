@@ -1,0 +1,121 @@
+{
+  "id": "database-latency",
+  "title": "Orders database slows to seconds per query",
+  "kind": "positive",
+  "description": "orders-db p95 query latency jumps from 20ms to 2.5s (lock contention on the orders table); checkout requests wait on it and time out.",
+  "service": "checkout-service",
+  "initial_conditions": "All services healthy; no recent changes.",
+  "observable_symptoms": [
+    "checkout p95 latency 0.12s -> 2.8s",
+    "orders-db p95 latency 20ms -> 2.5s",
+    "checkout WARNING logs: query to orders-db timed out"
+  ],
+  "alerts": [
+    {
+      "alertname": "HighP95Latency",
+      "alert_type": "latency",
+      "summary": "checkout-service p95 latency above 1s",
+      "description": "p95 latency of checkout requests exceeded 1s for 5 minutes."
+    }
+  ],
+  "world": {
+    "metrics": {
+      "checkout-service": {
+        "latency_p95": {
+          "series": {
+            "change_at_min": -15,
+            "baseline": 0.12,
+            "incident": 2.8
+          }
+        },
+        "dependency_error_rate": {
+          "by_dependency": {
+            "orders-db": {
+              "baseline": 0.001,
+              "incident": 0.35,
+              "change_at_min": -15
+            }
+          }
+        }
+      },
+      "orders-db": {
+        "latency_p95": {
+          "series": {
+            "change_at_min": -15,
+            "baseline": 0.02,
+            "incident": 2.5
+          }
+        }
+      }
+    },
+    "logs": {
+      "checkout-service": [
+        {
+          "at_min": -14,
+          "severity": "WARNING",
+          "message": "query to orders-db timed out after 2000ms",
+          "count": 40
+        }
+      ]
+    }
+  },
+  "expected": {
+    "outcome": "RCA_READY",
+    "root_cause": {
+      "categories": [
+        "database",
+        "dependency"
+      ],
+      "component": "orders-db"
+    },
+    "required_evidence": [
+      {
+        "type": "metric",
+        "service": "orders-db",
+        "operation": "service_health"
+      },
+      {
+        "type": "log",
+        "service": "checkout-service"
+      }
+    ],
+    "acceptable_evidence": [
+      {
+        "type": "metric",
+        "service": "orders-db"
+      },
+      {
+        "type": "metric",
+        "service": "checkout-service",
+        "operation": "metric_window:latency_p95"
+      },
+      {
+        "type": "metric",
+        "service": "checkout-service",
+        "operation": "metric_window:dependency_error_rate"
+      },
+      {
+        "type": "log",
+        "service": "checkout-service"
+      },
+      {
+        "type": "deployment",
+        "service": "checkout-service"
+      }
+    ],
+    "competing_hypotheses": [
+      {
+        "categories": [
+          "deployment"
+        ],
+        "component": "checkout-service"
+      },
+      {
+        "categories": [
+          "resource_cpu"
+        ],
+        "component": "checkout-service"
+      }
+    ]
+  }
+}

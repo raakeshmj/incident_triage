@@ -1,0 +1,52 @@
+{
+  "id": "evidence-source-unavailable",
+  "title": "Prometheus down during the incident",
+  "kind": "negative",
+  "description": "Prometheus is unreachable, so no metric or health evidence can be gathered; a deployment exists but nothing can show its effect.",
+  "service": "checkout-service",
+  "initial_conditions": "Prometheus unreachable for the whole investigation.",
+  "observable_symptoms": [
+    "every metric query fails",
+    "a deployment at -12 min",
+    "generic ERROR logs"
+  ],
+  "alerts": [
+    {
+      "alertname": "HighErrorRate",
+      "alert_type": "availability",
+      "summary": "checkout-service 5xx ratio above 10%",
+      "description": "Share of checkout requests answered with 5xx exceeded 10% for 5 minutes."
+    }
+  ],
+  "world": {
+    "unavailable": [
+      "prometheus"
+    ],
+    "logs": {
+      "checkout-service": [
+        {
+          "at_min": -9,
+          "severity": "ERROR",
+          "message": "request failed: internal error",
+          "count": 30
+        }
+      ]
+    },
+    "deployments": [
+      {
+        "service": "checkout-service",
+        "at_min": -12,
+        "version": "4.2.0",
+        "previous_version": "4.1.3"
+      }
+    ]
+  },
+  "expected": {
+    "outcome": "ESCALATED",
+    "acceptable_escalation_reasons": [
+      "inconclusive",
+      "evidence_unavailable",
+      "budget_exhausted"
+    ]
+  }
+}

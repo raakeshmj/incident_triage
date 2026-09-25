@@ -53,6 +53,15 @@ debounce scheduler and events. Departures from §07 are in ADR-0020/0021; no
 remediation or action-catalog validation (that needs this document's Phase 3).
 See `architecture/15-investigation-engine.md`.
 
+Build session "Phase 6" delivers the evaluation and replay framework
+(`architecture/11-evaluation-architecture.md`, "Phase 6: as built";
+ADR-0023): 17 golden scenarios (10 root-cause, 7 must-escalate) served
+through the real evidence path, recorded investigations, deterministic
+replay, structured grading, repeated runs and aggregation, and a CLI. It
+also caches the stable prompt prefix (ADR-0022) and makes the runtime
+provider/model a placeholder configuration. Deferred: any live-provider
+run (no credential yet), LLM-as-judge and CI gating on eval thresholds.
+
 ## Phase 0 — Foundations (no services yet)
 
 - `libs/schemas`: Pydantic models for the domain entities, event envelope,

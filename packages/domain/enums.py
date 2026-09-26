@@ -57,4 +57,7 @@ CLOSED_INCIDENT_STATUSES = (
     IncidentStatus.CLOSED,
     IncidentStatus.CANCELLED,
     IncidentStatus.SUPPRESSED,
+    # Phase 8 (migration 0007): a verified recovery closes the incident for
+    # correlation -- a later alert is a new incident, not an addendum.
+    IncidentStatus.RESOLVED,
 )

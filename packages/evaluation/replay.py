@@ -215,9 +215,21 @@ def signature(recording: InvestigationRecording) -> dict[str, Any]:
         ),
         "outcome": [recording.outcome["status"], recording.outcome["reason_code"]],
         "rca_supporting_evidence": sorted((rca.get("report") or {}).get("supporting_evidence", [])),
-        "incident_final_status": recording.incident["final_status"],
-        "incident_transitions": [[t["from"], t["to"]] for t in recording.incident_transitions],
+        # the investigation's own effect on the incident (a lifecycle recording
+        # continues past it; replay re-executes the investigation only)
+        "incident_transitions": investigation_transitions(recording),
     }
+
+
+def investigation_transitions(recording: InvestigationRecording) -> list[list[str]]:
+    """Incident transitions up to and including the investigation's outcome
+    (the first transition out of INVESTIGATING)."""
+    out: list[list[str]] = []
+    for t in recording.incident_transitions:
+        out.append([t["from"], t["to"]])
+        if t["from"] == "INVESTIGATING":
+            break
+    return out
 
 
 def diff_signatures(expected: dict[str, Any], actual: dict[str, Any]) -> list[str]:
@@ -435,6 +447,33 @@ def render_timeline(recording: InvestigationRecording) -> str:
             f"no RCA: {r.outcome['status']} {r.outcome['reason_code']} "
             f"{r.outcome.get('inconclusive_reason') or ''}"
         )
+    if r.lifecycle:
+        out.append("")
+        out.append("lifecycle (inspection only; replay never re-executes remediation):")
+        for rem in r.lifecycle.get("remediations", []):
+            view = rem["remediation"]
+            out.append(
+                f"  remediation {view['action_id']} {view['parameters']} -> {view['status']} "
+                f"(policy {view['policy_decision']}, approval {view['approval_status']})"
+            )
+            for entry in rem["timeline"]:
+                out.append(
+                    f"    {entry['occurred_at'][11:19]} {entry['event']} by {entry['actor']}"
+                )
+        for ver in r.lifecycle.get("verifications", []):
+            view = ver["verification"]
+            out.append(
+                f"  verification {view['status']} next={view['next_action']} "
+                f"streak={view['consecutive_successes']}/{view['spec']['required_consecutive']} "
+                f"{view['failure_reason'] or ''}"
+            )
+            for o in ver["observations"]:
+                failing = [c["detail"] for c in o["checks"] if c["ok"] is False]
+                out.append(
+                    f"    obs {o['sequence']}: {'pass' if o['passed'] else 'fail'} "
+                    f"{'; '.join(failing)} evidence={len(o['evidence_ids'])}"
+                )
+        out.append(f"  final incident state: {r.lifecycle.get('final_incident_status')}")
     out.append(
         f"totals: turns={t['model_turns']} tool_calls={t['tool_calls']} "
         f"evidence={t['evidence_items']} tokens in/out={t['input_tokens']}/{t['output_tokens']} "

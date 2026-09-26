@@ -40,6 +40,21 @@ def test_retry_safety_is_declared_where_a_repeat_would_double_act():
     assert get_entry("rollback_deployment").retry_safe is True  # type: ignore[union-attr]
 
 
+def test_a_config_change_without_a_previous_value_is_not_reverted():
+    """Found in the Phase 8 manual run: a seeded key (None -> v1) produced a
+    revert to null. Nothing to revert to: no proposal, and the catalog refuses it."""
+    change = {"key": "request_pipeline_config_version", "old_value": None, "new_value": "v1"}
+    config = _record("configuration", "checkout-service", {"changes_in_window": [change]})
+    proposal, why = RemediationPlanner(_Reader([config])).plan(
+        INC, INV, _rca("configuration", "checkout-service", [config.evidence_id])
+    )
+    assert proposal is None and "no previous value" in why
+    params, problems = get_entry("revert_configuration").validate(  # type: ignore[union-attr]
+        {"service": "checkout-service", "key": "k", "from_value": "v1", "to_value": None}
+    )
+    assert params is None and any("no previous value" in p for p in problems)
+
+
 @pytest.mark.parametrize(
     "params",
     [

@@ -48,5 +48,10 @@
       "evidence_unavailable",
       "budget_exhausted"
     ]
+  },
+  "lifecycle": {
+    "expected_action": null,
+    "expected_verification": null,
+    "expected_final_state": "ESCALATED"
   }
 }

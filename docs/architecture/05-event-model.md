@@ -230,3 +230,30 @@ idempotent per investigation) and `RemediationApproved` (execute; a claim
 of an already-settled remediation does nothing) in consumer group
 `cg:remediation-worker`, deduplicated by `consumed_events`. Its sweep is the
 liveness backstop for lost events and dead workers.
+
+## Phase 8: verification and closure events
+
+Aggregate `Verification` (payload `VerificationEventPayload`: verification
+id, remediation id, incident id, action id, status, result, reason,
+`next_action` = resolve | reinvestigate | escalate | none, observation
+count): `VerificationStarted`, `VerificationCompleted`. Aggregate `Incident`
+(payload `IncidentClosureEventPayload`): `IncidentResolved`,
+`IncidentEscalated` — alongside the usual `IncidentStatusChanged`.
+`VerificationRequested` (Phase 7) now carries the verification id and its
+frozen spec, and is emitted in the same transaction that creates the
+verification row PENDING.
+
+| Requested name | Event on the outbox |
+|---|---|
+| verification.requested | `VerificationRequested` |
+| verification.started | `VerificationStarted` |
+| verification.completed | `VerificationCompleted` |
+| incident.resolved | `IncidentResolved` |
+| investigation.requested (after a failed verification) | `VerificationCompleted(next_action=reinvestigate)` + `IncidentStatusChanged(→ VERIFICATION_FAILED)`; the investigation scheduler then emits `InvestigationStarted` |
+| incident.escalated | `IncidentEscalated` |
+
+The verification worker consumes `VerificationRequested` in consumer group
+`cg:verification-worker` (deduplicated by `consumed_events`); `start` is
+idempotent, so redelivery is harmless. Its tick over due verifications is
+the liveness backstop for a lost event or a dead worker. Delivery stays
+at-least-once through the transactional outbox.

@@ -80,6 +80,7 @@ def world(session_factory, evidence_session_factory, test_redis):
         evidence=EvidenceStoreReader(evidence_session_factory),
         catalog=support.CATALOG,
         owner="e2e-remediation-worker",
+        evidence_service=evidence,  # canned backends: no live telemetry
     )
     publisher = RedisStreamEventPublisher(test_redis, stream_prefix=prefix, shard_count=2)
     consumers = build_consumers(runtime, worker, test_redis)

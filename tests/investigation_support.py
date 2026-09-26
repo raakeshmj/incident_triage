@@ -262,3 +262,57 @@ def conclude_turn(request: DecisionRequest) -> ModelTurn:
 
 def happy_script() -> list:
     return [GATHER, hypotheses_turn, conclude_turn]
+
+
+# --- Phase 8: controllable telemetry for verification tests --------------------------
+
+
+class Telemetry:
+    """Canned Prometheus whose readings a test controls: `error_rate` for
+    every error-rate query (after `script` is exhausted), `down` for an
+    outage."""
+
+    def __init__(self, error_rate: float = 0.31) -> None:
+        self.error_rate = error_rate
+        self.down = False
+        self.script: list[float] = []
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        if self.down:
+            return httpx.Response(503, json={"status": "error"})
+        query = request.url.params["query"]
+        value = 1.0 if "up{" in query else 0.001
+        if "http_requests_errors_total" in query:
+            value = self.script.pop(0) if self.script else self.error_rate
+        if request.url.path.endswith("query_range"):
+            start = float(request.url.params["start"])
+            points = [[start + i * 60, str(value)] for i in range(3)]
+            return httpx.Response(
+                200,
+                json={"status": "success", "data": {"result": [{"metric": {}, "values": points}]}},
+            )
+        return httpx.Response(
+            200,
+            json={
+                "status": "success",
+                "data": {"result": [{"metric": {}, "value": [1, str(value)]}]},
+            },
+        )
+
+
+def controllable_evidence_service(
+    session_factory, core, redis_client, telemetry: Telemetry
+) -> EvidenceService:
+    def client(handler) -> httpx.Client:
+        return httpx.Client(base_url="http://canned", transport=httpx.MockTransport(handler))
+
+    return EvidenceService(
+        session_factory=session_factory,
+        gateway=core,
+        catalog=CATALOG,
+        prometheus=PrometheusAdapter(client(telemetry.handler)),
+        loki=LokiAdapter(client(loki_handler)),
+        tempo=TempoAdapter(client(lambda r: httpx.Response(200, json={"traces": []}))),
+        changes=ChangeRegistryAdapter(redis_client),
+        git=GitAdapter(ROOT),
+    )

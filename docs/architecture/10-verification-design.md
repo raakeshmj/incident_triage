@@ -3,67 +3,119 @@
 ## Purpose
 
 An executed remediation is not "done" because the executor returned
-success — it's done when the *incident's actual signal* recovers.
-Verification is the deterministic check that closes that loop; it is not
-another LLM judgment call.
+success — it is done when the *incident's actual signal* recovers.
+Verification is the deterministic check that closes that loop. It is not an
+LLM judgment call, and it trusts none of: executor `SUCCESS`, a model's
+assertion, or the remediation's own status.
 
-## Design
+Implemented in Phase 8. Decisions that differ from the original design are
+recorded in ADR-0025.
 
-- Each `action_catalog` entry declares `success_criteria` (see
-  `09-remediation-policy-boundaries.md`): a metric query template, a
-  threshold, and a sustained duration.
-- On `ExecutionCompleted`, `incident-core` creates a `Verification` row
-  (`status = pending`, `window_seconds` from the catalog entry) and
-  schedules a check.
-- The check calls **`evidence-service`** — the same source of truth the
-  investigation used — to fetch fresh evidence against the
-  `success_criteria` query, on a poll cadence (e.g. every 30s) for up to
-  `window_seconds`. Every poll's result is stored as `Evidence` too, linked
-  to the `Verification` via the normalized `verification_evidence` join
-  table (FK-enforced against `evidence_refs`, not a bare array of IDs —
-  see `06-database-design.md`), so "did it work" is exactly as auditable
-  and replayable as "what caused it."
-- **Pass**: criteria held for the full sustained duration ⇒
-  `VerificationCompleted(passed)` ⇒ `RESOLVED`.
-- **Fail**: criteria not met by window end ⇒
-  `VerificationCompleted(failed)` ⇒ `VERIFICATION_FAILED`.
+## Components
 
-## What happens on failure
+| Piece | Where | Role |
+|---|---|---|
+| Rules (pure) | `packages/domain/verification.py` | `VerificationPolicy`, `build_spec`, `evaluate_sample`, `decide` — no I/O, no clock |
+| Per-action policy | `packages/remediation/catalog.py` (`verification=`) | windows + check templates per catalog action |
+| Commands (single writer) | `packages/incident/verifications.py` (`VerificationCoreService`) | start, claim, record observation, finalize, incident transitions, outbox events |
+| Baseline | `RemediationCoreService.record_baseline` + `packages/verification/engine.py` (`BaselineCollector`) | captured through the evidence service *before* the action runs |
+| Observer | `packages/verification/observer.py` (`EvidenceObserver`) | every observation goes through `EvidenceService`; returns a `Sample` + evidence ids |
+| Engine | `packages/verification/engine.py` (`VerificationEngine`) | tick-based: claim a due verification, observe, record |
+| Worker | `apps/worker/verification_main.py` | consumes `VerificationRequested`, ticks due verifications, heartbeats |
 
-1. If the executed action's catalog entry declares a `rollback_action_id`,
-   `incident-core` creates a new `RemediationProposal` for the rollback
-   action automatically, runs it through the **same policy-engine and
-   approval path** (a rollback is still a remediation and still subject to
-   policy — it does not get a free pass), and executes it if
-   allowed/approved.
-2. Whether or not a rollback ran, the incident moves to
-   `VERIFICATION_FAILED` → (per the state machine) either a new
-   `Investigation` attempt (if `attempt_count < max_attempts`) or
-   `ESCALATED`.
-3. `attempt_count` is incremented either way — this bounds the total
-   number of autonomous investigate→remediate→verify loops per incident
-   (default 2), guaranteeing the system cannot cycle indefinitely and
-   *must* hand off to a human eventually if it can't resolve things.
+## Lifecycle
 
-## Why verification cannot be skipped or LLM-judged
+```
+remediation runner
+  ├─ baseline: EvidenceObserver(needs of the action) -> record_baseline (fenced, once)
+  │     baseline unavailable -> action NOT executed (retryable failure)
+  ├─ executor (idempotent by key)
+  └─ complete_execution  ── one transaction ──────────────────────────────
+         remediation EXECUTED · incident VERIFYING · verification PENDING
+         (spec + baseline copied, baseline evidence linked, poll_sequence 0)
+         outbox: RemediationExecuted, VerificationRequested
+verification worker
+  ├─ VerificationRequested -> start: PENDING -> RUNNING, grace + deadline set,
+  │                           known_alert_ids snapshot; VerificationStarted
+  └─ tick: claim_due (lease + claim_attempt++) -> observe -> record_observation
+           -> evaluate_sample -> streak -> decide
+           -> PASSED | FAILED | TIMED_OUT -> finalize (VerificationCompleted + incident)
+```
 
-- Skipping it would mean "executed" and "resolved" are conflated, which
-  hides failed fixes and silently leaves incidents open in practice while
-  marked closed in the system — a direct violation of the "state must
-  reflect reality" principle.
-- Using Claude to *judge* whether the incident recovered (rather than a
-  deterministic threshold check) reintroduces exactly the hallucination
-  risk the evidence model was built to eliminate, at the highest-stakes
-  point in the pipeline. Verification criteria are therefore always a
-  simple, human-authored threshold/duration check against real metrics —
-  no model call in this path.
+## Windows
 
-## Escalation on verification-path failure
+`VerificationPolicy(grace_seconds, window_seconds, poll_interval_seconds,
+required_consecutive, baseline_required, checks)`; `timeout = grace +
+window + 2 × interval`. No observation is taken during the grace period.
 
-If `evidence-service` itself is unreachable during the verification
-window (distinct from the metric being unhealthy), that is **not** treated
-as pass or fail — it's an infrastructure fault. `incident-core` marks the
-verification `status = pending` beyond its window, emits an alert to
-`notification-service` ("verification could not complete"), and transitions
-to `ESCALATED` rather than guessing. Silence from the monitoring stack is
-never interpreted as success.
+| Action | grace | window | interval | consecutive | Checks |
+|---|---|---|---|---|---|
+| `restart_service` | 45 s | 240 s | 15 s | 3 | health healthy · error_rate ≤ 0.05 · no new firing alerts |
+| `scale_service` | 30 s | 240 s | 15 s | 3 | replicas = baseline + increase_by · health · latency_p95 ≤ 1.0 s · no new alerts |
+| `rollback_deployment` | 60 s | 300 s | 15 s | 3 | running version = to_version · health · error_rate · latency · no new alerts |
+| `disable_feature_flag` | 30 s | 180 s | 15 s | 2 | flag = false · health · no new alerts (no baseline required) |
+| `revert_configuration` | 45 s | 240 s | 15 s | 3 | config value = to_value · health · error_rate · no new alerts |
+
+`VERIFICATION_TIME_SCALE` multiplies all windows (tests, evaluation and the
+local demo only; production is 1.0). The policy version
+(`verification-2026.09-1`) is stored on every verification.
+
+## Deciding
+
+- **A sample** is one observation of every source the spec needs. If any
+  source errored or is missing, the sample is **inconclusive** — it neither
+  passes nor fails, and it resets the success streak.
+- **State checks** (version, config, flag, replicas) are definitive: if the
+  executed change is not actually in place, verification FAILS immediately.
+- **PASSED** only after `required_consecutive` consecutive passing
+  conclusive samples. One good sample between bad ones (a transient
+  recovery) resets and does not pass.
+- **At the deadline:** FAILED if any conclusive observation was made
+  (the signal was seen and never recovered for long enough); TIMED_OUT if
+  none was (the evidence never became conclusive — silence is never success).
+- **New alerts:** alerts firing for the incident that were not in the
+  `known_alert_ids` snapshot at start. It is an id comparison, independent of
+  clock skew between database and workers.
+
+## Closing the loop (incident-core)
+
+| Verdict | Incident | Events |
+|---|---|---|
+| PASSED | VERIFYING → RESOLVED | VerificationCompleted, IncidentStatusChanged, IncidentResolved |
+| FAILED, attempts left, an alert still firing | VERIFYING → VERIFICATION_FAILED; the investigation scheduler then starts a new attempt (→ INVESTIGATING) | VerificationCompleted(next_action=reinvestigate), IncidentStatusChanged, then InvestigationStarted |
+| FAILED, attempts exhausted or nothing firing | VERIFYING → VERIFICATION_FAILED → ESCALATED | VerificationCompleted(next_action=escalate), IncidentEscalated |
+| TIMED_OUT | VERIFYING → ESCALATED | VerificationCompleted, IncidentEscalated |
+
+`MAX_INVESTIGATION_ATTEMPTS` (default 2) bounds the
+investigate → remediate → verify loop. **A failed verification never
+executes another remediation automatically**: a re-investigation may lead to
+a new proposal, which goes through policy and human approval like any other.
+No automatic rollback proposal is created (ADR-0025).
+
+## Safety
+
+- **Fencing.** Every write carries the lease owner and `claim_attempt`; a
+  worker that lost its lease (crash, pause) cannot record an observation or
+  a verdict.
+- **Staleness.** A verdict moves the incident only if the incident is still
+  VERIFYING, the remediation is EXECUTED, the remediation's
+  `verification_ref` is this verification and no newer remediation exists.
+  Otherwise the verdict is recorded with `next_action = none` and an
+  annotated reason ("[not applied: …]") — a human's ESCALATED is never
+  overwritten.
+- **Crash recovery.** State lives in Postgres: a restarted worker resumes by
+  claiming due verifications; a verification past its deadline is finalized
+  from its recorded observations.
+- **Idempotency.** Duplicate `VerificationRequested` deliveries are no-ops;
+  `start` is idempotent; the consumer dedup ledger still applies.
+- **Immutability.** Baselines, observations and evidence links are
+  append-only (triggers); the spec columns of a verification are frozen.
+
+## Evidence
+
+Every baseline and observation is collected through `EvidenceService` and
+stored as ordinary evidence (`requested_by = verification:<id>`), linked via
+`verification_evidence (verification_id, evidence_id, role, poll_sequence)`
+with a foreign key to `evidence_refs`. `role = baseline` (sequence 0) or
+`observation` (1..n). "Did it work" is as auditable and replayable as "what
+caused it."

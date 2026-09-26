@@ -2,13 +2,14 @@
 
 Autonomous Production Incident Triage & Response platform.
 
-**Status: Phases 1-7 implemented.** A working vertical slice with a
+**Status: Phases 1-8 implemented (the final planned phase).** A working vertical slice with a
 production-shaped event transport, a real correlation engine, a realistic
 local production environment feeding it real alerts, (Phase 4) the trusted
 evidence and investigation substrate, and (Phase 5) a bounded, read-only,
 evidence-grounded investigation agent, and (Phase 6) an evaluation and
 replay framework for it, and (Phase 7) human-approved, policy-gated,
-bounded remediation against the simulator:
+bounded remediation against the simulator, and (Phase 8) deterministic,
+evidence-based verification that closes the loop, plus an operations console:
 
 ```
 checkout/payment/inventory services (simulated, chaos-injectable)
@@ -40,6 +41,13 @@ golden scenario -> real evidence path (canned backends) -> engine -> recording
 RCA_READY -> planner (deterministic) -> proposal -> policy (pure) -> AWAITING_APPROVAL
     -> human approval (API, bound to the exact proposal) -> runner -> catalog action
     on the simulator (idempotent, bounded, reconciled) -> EXECUTED -> VERIFYING
+
+VERIFYING -> verification worker -> evidence-service observations vs. baseline
+    -> N consecutive passing observations -> RESOLVED
+    -> FAILED -> VERIFICATION_FAILED -> re-investigation (bounded) | ESCALATED
+    -> no conclusive evidence by the deadline -> TIMED_OUT -> ESCALATED
+
+operations console (apps/dashboard, Carbon) -> typed read API (/api/v1) only
 ```
 
 See [`docs/`](docs/) for the full architecture,
@@ -59,10 +67,12 @@ prompt caching, and
 [`docs/architecture/11-evaluation-architecture.md`](docs/architecture/11-evaluation-architecture.md)
 (+ ADR-0023) for Phase 6's evaluation and replay, and
 [`docs/architecture/09-remediation-policy-boundaries.md`](docs/architecture/09-remediation-policy-boundaries.md)
-("Phase 7: as built", + ADR-0024) for Phase 7's remediation. Nothing beyond
-this scope is implemented yet: no automatic remediation, no verification
-of remediation outcomes, no Kubernetes, no Incident Intelligence dashboard
-or approval UI.
+("Phase 7: as built", + ADR-0024) for Phase 7's remediation, and
+[`docs/architecture/10-verification-design.md`](docs/architecture/10-verification-design.md)
+(+ ADR-0025) and [`docs/operations.md`](docs/operations.md) for Phase 8's
+verification, closed loop and local operation. Not implemented: automatic
+(pre-approved) remediation, real production executors, Kubernetes,
+identity-provider auth, the `CLOSED`/`SUPPRESSED` states.
 
 ## Repository layout
 
@@ -73,7 +83,7 @@ apps/
   worker/       the transactional outbox relay (Postgres -> Redis Stream),
                 the metrics consumer, and the investigation worker (Phase 5)
   evidence/     evidence-service's internal API: tools + evidence replay/audit (Phase 4)
-  dashboard/    reserved for the Next.js UI (not implemented yet)
+  dashboard/    Phase 8: the operations console (Vite + React + Carbon)
 
 packages/
   domain/       pure domain models -- Alert, Incident, commands, events,
@@ -89,6 +99,7 @@ packages/
                 read-only toolset, prompts (Phase 5)
   policy/       Phase 7: the pure policy engine
   remediation/  Phase 7: action catalog, planner, executor boundary, runner
+  verification/ Phase 8: evidence observer + tick-based verification engine
   evaluation/   Phase 6: golden-scenario worlds, recordings, replay, grading,
                 harness and the `evaluate` / `replay` CLI
 
@@ -293,6 +304,22 @@ curl -s -X PUT localhost:8000/api/v1/kill-switches/global \
 Every remediation needs a human: policy never allows automatic execution.
 The executor acts only on the simulated environment.
 
+## Phase 8: verification and the operations console
+
+```bash
+make run-verification-worker     # VerificationRequested -> observe via evidence -> verdict
+make seed-demo                   # demo incidents in every lifecycle state (dev DB)
+make dashboard-install && make dashboard-dev    # http://localhost:5173
+curl -s localhost:8000/api/v1/incidents?status=RESOLVED
+curl -s localhost:8000/api/v1/incidents/<id>/detail   # timeline, RCA, remediation, verification
+curl -s localhost:8000/api/v1/overview                 # counts, DLQ length, worker heartbeats
+curl -s localhost:8000/api/v1/metrics                  # durations/rates from recorded timestamps
+```
+
+RESOLVED only after a PASSED verification; a failed verification never
+triggers another remediation automatically. Walkthrough:
+[`docs/operations.md`](docs/operations.md).
+
 ## Tests
 
 ```bash
@@ -302,6 +329,9 @@ make test-integration  # packages/incident + packages/events against real Postgr
 make test-e2e          # the FastAPI app in-process against real Postgres/Redis
 make test-stack        # needs `make infra-up-full`: live Prometheus/Loki/Tempo
                        # adapters + the live chaos-incident e2e (~2-4 min)
+                       # and the live lifecycle scenarios (~8 min)
+make dashboard-check   # dashboard typecheck + vitest + production build
+make dashboard-e2e     # Playwright: desktop / 1024 / 390x844, axe checks
 ```
 
 Integration and e2e tests auto-skip with a clear message if
@@ -329,6 +359,8 @@ make infra-down   # docker compose down -v (drops the Postgres volume too)
 - [`docs/adr/`](docs/adr/) — architecture decision records
 - [`docs/review/critical-review.md`](docs/review/critical-review.md) — self-critique
 - [`docs/implementation-order.md`](docs/implementation-order.md) — build sequence
+- [`docs/operations.md`](docs/operations.md) — running the whole loop locally
+- [`docs/frontend/design-workflow.md`](docs/frontend/design-workflow.md) — dashboard design workflow
 - [`simulator/scenarios.md`](simulator/scenarios.md) — Phase 3's 6 worked incident scenarios
 
 ## Core rule

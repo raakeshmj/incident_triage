@@ -103,5 +103,10 @@
         "component": "payment-service"
       }
     ]
+  },
+  "lifecycle": {
+    "expected_action": "revert_configuration",
+    "expected_verification": "PASSED",
+    "expected_final_state": "RESOLVED"
   }
 }

@@ -28,3 +28,13 @@ htmlcov/
 .DS_Store
 investigation-traces/
 eval-results/
+# Playwright CLI output (may contain credentials)
+.playwright-cli/
+# Dashboard build / test output
+apps/dashboard/node_modules/
+apps/dashboard/dist/
+apps/dashboard/test-results/
+apps/dashboard/playwright-report/
+apps/dashboard/*.tsbuildinfo
+# Project-local agent skills: reinstalled from skills-lock.json (docs/frontend/design-workflow.md)
+.claude/skills/

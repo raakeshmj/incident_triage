@@ -233,3 +233,33 @@ doesn't contain `eval` or `test`.
 LLM-as-judge, CI gating on eval thresholds, remediation correctness and
 policy-safety suites (no remediation/policy yet), dataset growth from
 production verifications, trace (Tempo) fixtures in scenario worlds.
+
+## Phase 8: full-lifecycle evaluation and replay
+
+Scenarios may carry a `lifecycle` block: `expected_action`, `approve`,
+`remediation_effective`, `expected_verification`, `expected_final_state`.
+With it, `run_scenario` continues past the investigation through the
+production planner, policy engine, approval binding (a simulated
+approver), runner (baseline via evidence), verification engine and
+incident-core commands (`packages/evaluation/lifecycle.py`). The one
+substitution is `ScenarioExecutor`, which applies the catalog action to the
+scenario world: after an effective remediation the world's metrics return
+to baseline; after an ineffective one (`ineffective-rollback.json`) they do
+not. Deliveries of the proposal, the approval-triggered execution and the
+verification start are deliberately duplicated so "no duplicate side
+effects" is graded from what happened.
+
+Grading adds `Grade.lifecycle`: action, verification verdict, final state,
+executor side-effect count and unsafe flags (resolved without a PASSED
+verification, executed without approval, more than one side effect). The
+investigation-level assertions now use `investigation_outcome_status`
+(the state right after the investigation), since the final state is a
+lifecycle expectation. Recordings (`recording-v1`) gain an optional
+`lifecycle` section (remediations, verifications, observations, evidence
+links); the replay signature includes the investigation transitions, and
+`render_timeline` shows the whole loop. Replay reads recordings only — it
+never calls an executor, the simulator or any live system.
+
+18 scenarios; `python -m packages.evaluation evaluate --all --mode fake`
+passes 18/18 with lifecycle accuracy 1.0 and exactly one side effect per
+executed remediation.

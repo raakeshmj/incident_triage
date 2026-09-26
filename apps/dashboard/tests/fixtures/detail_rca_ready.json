@@ -1,0 +1,1048 @@
+{
+ "incident": {
+  "id": "3285e63b-2869-4498-a2c1-99190c7145aa",
+  "status": "RCA_READY",
+  "severity": "critical",
+  "service": "inventory-service",
+  "environment": "production",
+  "correlation_key": "c71b54241f2da321a2c46583fb84d8e6f190aba40dbc7ae311d0e54df09d59a3:1989383",
+  "attempt_count": 1,
+  "version": 2,
+  "created_at": "2026-09-26T17:48:47.294140+00:00",
+  "updated_at": "2026-09-26T17:48:47.457799+00:00",
+  "ended_at": null,
+  "duration_seconds": 50.6
+ },
+ "alerts": [
+  {
+   "id": "8c7f0812-e25b-4592-80ca-94825a004d10",
+   "alertname": "ServiceDown",
+   "service": "inventory-service",
+   "severity": "critical",
+   "status": "firing",
+   "source": "prometheus",
+   "summary": "inventory-service scrape target down",
+   "received_at": "2026-09-26T17:48:47.294140+00:00",
+   "resolved_at": null
+  }
+ ],
+ "transitions": [
+  {
+   "at": "2026-09-26T17:48:47.303726+00:00",
+   "from": "TRIAGING",
+   "to": "INVESTIGATING",
+   "reason": "investigation_started"
+  },
+  {
+   "at": "2026-09-26T17:48:47.458486+00:00",
+   "from": "INVESTIGATING",
+   "to": "RCA_READY",
+   "reason": "root_cause_selected"
+  }
+ ],
+ "investigations": [
+  {
+   "investigation": {
+    "id": "18dd3415-44f0-4f96-b8fb-fe44d920e983",
+    "incident_id": "3285e63b-2869-4498-a2c1-99190c7145aa",
+    "attempt_number": 1,
+    "status": "COMPLETED",
+    "model_provider": "fake",
+    "model_name": "heuristic-investigator",
+    "model_settings": {
+     "effort": null,
+     "thinking": "none",
+     "max_tokens": 4096,
+     "max_retries": 0,
+     "prompt_cache": "off",
+     "prompt_version": "investigation-v2",
+     "timeout_seconds": 10
+    },
+    "budget": {
+     "max_iterations": 15,
+     "max_tool_calls": 25,
+     "max_identical_tool_calls": 2,
+     "max_evidence_items": 40,
+     "max_wall_clock_seconds": 900,
+     "max_total_tokens": 600000,
+     "max_consecutive_invalid_turns": 3,
+     "max_consecutive_tool_failures": 5
+    },
+    "iteration_count": 4,
+    "tool_call_count": 10,
+    "evidence_count": 10,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": 0,
+    "cache_creation_tokens": 0,
+    "last_action": "completed",
+    "failure_reason": null,
+    "escalation_reason": null,
+    "inconclusive_reason": null,
+    "selected_hypothesis_id": "a9f7fd06-8c63-478b-ae47-060da7f097d0",
+    "final_result": {
+     "outcome": "root_cause_identified",
+     "confidence": 0.8,
+     "rca_report_id": "2b8bd952-7f95-4c15-9adf-abe10b26efee",
+     "selected_hypothesis_key": "infra"
+    },
+    "created_at": "2026-09-26T17:48:47.302285Z",
+    "started_at": "2026-09-26T17:48:47.304911Z",
+    "completed_at": "2026-09-26T17:48:47.454939Z"
+   },
+   "hypotheses": [
+    {
+     "key": "config_inventory",
+     "description": "A recent configuration change to inventory-service caused the incident.",
+     "cause_category": "configuration",
+     "component": "inventory-service",
+     "status": "WEAKENED",
+     "confidence": 0.1,
+     "supporting_evidence_ids": [],
+     "contradicting_evidence_ids": [
+      "fb2bbb7c-22b1-4caf-8c5e-1f0c059aef49"
+     ],
+     "missing_evidence": []
+    },
+    {
+     "key": "dep_inventory-db",
+     "description": "inventory-db, a dependency of inventory-service, is failing or slow.",
+     "cause_category": "database",
+     "component": "inventory-db",
+     "status": "WEAKENED",
+     "confidence": 0.1,
+     "supporting_evidence_ids": [],
+     "contradicting_evidence_ids": [
+      "48f4c193-6157-4f11-9121-4cf2742ecb5e"
+     ],
+     "missing_evidence": []
+    },
+    {
+     "key": "deploy_inventory",
+     "description": "A recent deployment change to inventory-service caused the incident.",
+     "cause_category": "deployment",
+     "component": "inventory-service",
+     "status": "WEAKENED",
+     "confidence": 0.1,
+     "supporting_evidence_ids": [],
+     "contradicting_evidence_ids": [
+      "629e5a94-5b11-40d3-badb-9c51c38dbbef"
+     ],
+     "missing_evidence": []
+    },
+    {
+     "key": "infra",
+     "description": "The platform running inventory-service failed.",
+     "cause_category": "infrastructure",
+     "component": "inventory-service",
+     "status": "SELECTED",
+     "confidence": 0.8,
+     "supporting_evidence_ids": [
+      "eb25da24-af9a-404a-942d-68ab9d4aa26b",
+      "f7cf725c-d172-47d9-92c5-262abe9de966"
+     ],
+     "contradicting_evidence_ids": [],
+     "missing_evidence": []
+    },
+    {
+     "key": "resource_cpu",
+     "description": "inventory-service is failing because of resource cpu.",
+     "cause_category": "resource_cpu",
+     "component": "inventory-service",
+     "status": "WEAKENED",
+     "confidence": 0.1,
+     "supporting_evidence_ids": [],
+     "contradicting_evidence_ids": [
+      "0f858dfc-a0e4-4192-a71e-a45ee2432af9"
+     ],
+     "missing_evidence": []
+    },
+    {
+     "key": "resource_memory",
+     "description": "inventory-service is failing because of resource memory.",
+     "cause_category": "resource_memory",
+     "component": "inventory-service",
+     "status": "WEAKENED",
+     "confidence": 0.1,
+     "supporting_evidence_ids": [],
+     "contradicting_evidence_ids": [
+      "c5005e6a-c72e-4245-a8c8-cd0c0f5c1e06"
+     ],
+     "missing_evidence": []
+    },
+    {
+     "key": "traffic",
+     "description": "inventory-service is failing because of traffic.",
+     "cause_category": "traffic",
+     "component": "inventory-service",
+     "status": "WEAKENED",
+     "confidence": 0.1,
+     "supporting_evidence_ids": [],
+     "contradicting_evidence_ids": [
+      "6034233b-7e3d-48d6-a053-7e5318bc7d95"
+     ],
+     "missing_evidence": []
+    }
+   ],
+   "tool_calls": [
+    {
+     "sequence": 4,
+     "iteration": 1,
+     "at": "2026-09-26T17:48:47.342890Z",
+     "tool": "get_service_health",
+     "arguments": {
+      "service": "inventory-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "inventory-service is down at 2026-09-26T17:48:47.337509+00:00 (no threshold violations)",
+     "evidence_ids": [
+      "eb25da24-af9a-404a-942d-68ab9d4aa26b"
+     ]
+    },
+    {
+     "sequence": 5,
+     "iteration": 1,
+     "at": "2026-09-26T17:48:47.351181Z",
+     "tool": "get_metric_window",
+     "arguments": {
+      "metric": "error_rate",
+      "service": "inventory-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "error_rate for inventory-service: current=0.20%, window avg=0.20% vs baseline avg=0.20% (flat)",
+     "evidence_ids": [
+      "75b0c5c6-ac35-43ff-91af-8b4ea9841811"
+     ]
+    },
+    {
+     "sequence": 6,
+     "iteration": 1,
+     "at": "2026-09-26T17:48:47.358303Z",
+     "tool": "get_metric_window",
+     "arguments": {
+      "metric": "latency_p95",
+      "service": "inventory-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "latency_p95 for inventory-service: current=120.0ms, window avg=120.0ms vs baseline avg=120.0ms (flat)",
+     "evidence_ids": [
+      "2aab1ef3-b2c0-4423-99f4-3dcaddffd3a9"
+     ]
+    },
+    {
+     "sequence": 7,
+     "iteration": 1,
+     "at": "2026-09-26T17:48:47.363832Z",
+     "tool": "get_recent_deployments",
+     "arguments": {
+      "service": "inventory-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "inventory-service running 1.0.0 (from None, deployed 2026-09-23T17:48:47.294980+00:00); 0 deployment(s) in window",
+     "evidence_ids": [
+      "629e5a94-5b11-40d3-badb-9c51c38dbbef"
+     ]
+    },
+    {
+     "sequence": 8,
+     "iteration": 1,
+     "at": "2026-09-26T17:48:47.369498Z",
+     "tool": "get_config_changes",
+     "arguments": {
+      "service": "inventory-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "0 config change(s) for inventory-service in window; effective: none on record",
+     "evidence_ids": [
+      "fb2bbb7c-22b1-4caf-8c5e-1f0c059aef49"
+     ]
+    },
+    {
+     "sequence": 9,
+     "iteration": 1,
+     "at": "2026-09-26T17:48:47.376423Z",
+     "tool": "get_logs",
+     "arguments": {
+      "service": "inventory-service",
+      "severities": [
+       "ERROR",
+       "WARNING",
+       "CRITICAL"
+      ]
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "3 matching log lines for inventory-service (3 ERROR/CRITICAL) in window; top: 'node ip-10-0-3-17 NotReady: kubelet stopped posting status; pod evicted' x3",
+     "evidence_ids": [
+      "f7cf725c-d172-47d9-92c5-262abe9de966"
+     ]
+    },
+    {
+     "sequence": 10,
+     "iteration": 1,
+     "at": "2026-09-26T17:48:47.383741Z",
+     "tool": "get_service_health",
+     "arguments": {
+      "service": "inventory-db"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "inventory-db is healthy at 2026-09-26T17:48:47.378591+00:00 (no threshold violations)",
+     "evidence_ids": [
+      "48f4c193-6157-4f11-9121-4cf2742ecb5e"
+     ]
+    },
+    {
+     "sequence": 13,
+     "iteration": 2,
+     "at": "2026-09-26T17:48:47.402609Z",
+     "tool": "get_metric_window",
+     "arguments": {
+      "metric": "request_rate",
+      "service": "inventory-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "request_rate for inventory-service: current=0 req/s, window avg=31.5 req/s vs baseline avg=40 req/s (down)",
+     "evidence_ids": [
+      "6034233b-7e3d-48d6-a053-7e5318bc7d95"
+     ]
+    },
+    {
+     "sequence": 14,
+     "iteration": 2,
+     "at": "2026-09-26T17:48:47.410699Z",
+     "tool": "get_metric_window",
+     "arguments": {
+      "metric": "cpu_usage",
+      "service": "inventory-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "cpu_usage for inventory-service: current=30.00%, window avg=30.00% vs baseline avg=30.00% (flat)",
+     "evidence_ids": [
+      "0f858dfc-a0e4-4192-a71e-a45ee2432af9"
+     ]
+    },
+    {
+     "sequence": 15,
+     "iteration": 2,
+     "at": "2026-09-26T17:48:47.418470Z",
+     "tool": "get_metric_window",
+     "arguments": {
+      "metric": "memory_usage",
+      "service": "inventory-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "memory_usage for inventory-service: current=120.0MB, window avg=120.0MB vs baseline avg=120.0MB (flat)",
+     "evidence_ids": [
+      "c5005e6a-c72e-4245-a8c8-cd0c0f5c1e06"
+     ]
+    }
+   ],
+   "hypothesis_updates": [
+    {
+     "at": "2026-09-26T17:48:47.439120Z",
+     "iteration": 3,
+     "applied": [
+      {
+       "key": "deploy_inventory",
+       "component": "inventory-service",
+       "rationale": "0 supporting item(s) of types []; 1 contradicting.",
+       "to_status": "WEAKENED",
+       "confidence": 0.1,
+       "from_status": null,
+       "cause_category": "deployment",
+       "added_supporting": [],
+       "added_contradicting": [
+        "629e5a94-5b11-40d3-badb-9c51c38dbbef"
+       ]
+      },
+      {
+       "key": "config_inventory",
+       "component": "inventory-service",
+       "rationale": "0 supporting item(s) of types []; 1 contradicting.",
+       "to_status": "WEAKENED",
+       "confidence": 0.1,
+       "from_status": null,
+       "cause_category": "configuration",
+       "added_supporting": [],
+       "added_contradicting": [
+        "fb2bbb7c-22b1-4caf-8c5e-1f0c059aef49"
+       ]
+      },
+      {
+       "key": "dep_inventory-db",
+       "component": "inventory-db",
+       "rationale": "0 supporting item(s) of types []; 1 contradicting.",
+       "to_status": "WEAKENED",
+       "confidence": 0.1,
+       "from_status": null,
+       "cause_category": "database",
+       "added_supporting": [],
+       "added_contradicting": [
+        "48f4c193-6157-4f11-9121-4cf2742ecb5e"
+       ]
+      },
+      {
+       "key": "resource_cpu",
+       "component": "inventory-service",
+       "rationale": "0 supporting item(s) of types []; 1 contradicting.",
+       "to_status": "WEAKENED",
+       "confidence": 0.1,
+       "from_status": null,
+       "cause_category": "resource_cpu",
+       "added_supporting": [],
+       "added_contradicting": [
+        "0f858dfc-a0e4-4192-a71e-a45ee2432af9"
+       ]
+      },
+      {
+       "key": "resource_memory",
+       "component": "inventory-service",
+       "rationale": "0 supporting item(s) of types []; 1 contradicting.",
+       "to_status": "WEAKENED",
+       "confidence": 0.1,
+       "from_status": null,
+       "cause_category": "resource_memory",
+       "added_supporting": [],
+       "added_contradicting": [
+        "c5005e6a-c72e-4245-a8c8-cd0c0f5c1e06"
+       ]
+      },
+      {
+       "key": "traffic",
+       "component": "inventory-service",
+       "rationale": "0 supporting item(s) of types []; 1 contradicting.",
+       "to_status": "WEAKENED",
+       "confidence": 0.1,
+       "from_status": null,
+       "cause_category": "traffic",
+       "added_supporting": [],
+       "added_contradicting": [
+        "6034233b-7e3d-48d6-a053-7e5318bc7d95"
+       ]
+      },
+      {
+       "key": "infra",
+       "component": "inventory-service",
+       "rationale": "2 supporting item(s) of types ['log', 'metric']; 0 contradicting.",
+       "to_status": "SUPPORTED",
+       "confidence": 0.8,
+       "from_status": null,
+       "cause_category": "infrastructure",
+       "added_supporting": [
+        "eb25da24-af9a-404a-942d-68ab9d4aa26b",
+        "f7cf725c-d172-47d9-92c5-262abe9de966"
+       ],
+       "added_contradicting": []
+      }
+     ],
+     "rejected": [],
+     "hypotheses": [
+      {
+       "key": "deploy_inventory",
+       "status": "WEAKENED",
+       "component": "inventory-service",
+       "confidence": 0.1,
+       "description": "A recent deployment change to inventory-service caused the incident.",
+       "cause_category": "deployment",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "629e5a94-5b11-40d3-badb-9c51c38dbbef"
+       ]
+      },
+      {
+       "key": "config_inventory",
+       "status": "WEAKENED",
+       "component": "inventory-service",
+       "confidence": 0.1,
+       "description": "A recent configuration change to inventory-service caused the incident.",
+       "cause_category": "configuration",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "fb2bbb7c-22b1-4caf-8c5e-1f0c059aef49"
+       ]
+      },
+      {
+       "key": "dep_inventory-db",
+       "status": "WEAKENED",
+       "component": "inventory-db",
+       "confidence": 0.1,
+       "description": "inventory-db, a dependency of inventory-service, is failing or slow.",
+       "cause_category": "database",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "48f4c193-6157-4f11-9121-4cf2742ecb5e"
+       ]
+      },
+      {
+       "key": "resource_cpu",
+       "status": "WEAKENED",
+       "component": "inventory-service",
+       "confidence": 0.1,
+       "description": "inventory-service is failing because of resource cpu.",
+       "cause_category": "resource_cpu",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "0f858dfc-a0e4-4192-a71e-a45ee2432af9"
+       ]
+      },
+      {
+       "key": "resource_memory",
+       "status": "WEAKENED",
+       "component": "inventory-service",
+       "confidence": 0.1,
+       "description": "inventory-service is failing because of resource memory.",
+       "cause_category": "resource_memory",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "c5005e6a-c72e-4245-a8c8-cd0c0f5c1e06"
+       ]
+      },
+      {
+       "key": "traffic",
+       "status": "WEAKENED",
+       "component": "inventory-service",
+       "confidence": 0.1,
+       "description": "inventory-service is failing because of traffic.",
+       "cause_category": "traffic",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "6034233b-7e3d-48d6-a053-7e5318bc7d95"
+       ]
+      },
+      {
+       "key": "infra",
+       "status": "SUPPORTED",
+       "component": "inventory-service",
+       "confidence": 0.8,
+       "description": "The platform running inventory-service failed.",
+       "cause_category": "infrastructure",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [
+        "eb25da24-af9a-404a-942d-68ab9d4aa26b",
+        "f7cf725c-d172-47d9-92c5-262abe9de966"
+       ],
+       "contradicting_evidence_ids": []
+      }
+     ]
+    }
+   ],
+   "conclusion_rejections": [],
+   "rca": {
+    "id": "2b8bd952-7f95-4c15-9adf-abe10b26efee",
+    "summary": "Root cause (confidence 0.80): The platform running inventory-service failed. [eb25da24, f7cf725c]\nSummary: inventory-service degraded; evidence points to infrastructure in inventory-service. [eb25da24, f7cf725c]\nImpact: inventory-service requests were affected. [eb25da24]\nAffected services: inventory-service [eb25da24]\nTimeline:\n  2026-09-26T17:48:47.337509Z infrastructure anomaly observed in inventory-service [eb25da24]",
+    "report": {
+     "impact": {
+      "text": "inventory-service requests were affected.",
+      "evidence_ids": [
+       "eb25da24-af9a-404a-942d-68ab9d4aa26b"
+      ]
+     },
+     "timeline": [
+      {
+       "at": "2026-09-26T17:48:47.337509Z",
+       "event": "infrastructure anomaly observed in inventory-service",
+       "evidence_ids": [
+        "eb25da24-af9a-404a-942d-68ab9d4aa26b"
+       ]
+      }
+     ],
+     "confidence": 0.8,
+     "root_cause": {
+      "text": "The platform running inventory-service failed.",
+      "evidence_ids": [
+       "eb25da24-af9a-404a-942d-68ab9d4aa26b",
+       "f7cf725c-d172-47d9-92c5-262abe9de966"
+      ]
+     },
+     "incident_summary": {
+      "text": "inventory-service degraded; evidence points to infrastructure in inventory-service.",
+      "evidence_ids": [
+       "eb25da24-af9a-404a-942d-68ab9d4aa26b",
+       "f7cf725c-d172-47d9-92c5-262abe9de966"
+      ]
+     },
+     "affected_services": [
+      {
+       "service": "inventory-service",
+       "evidence_ids": [
+        "eb25da24-af9a-404a-942d-68ab9d4aa26b"
+       ]
+      }
+     ],
+     "supporting_evidence": [
+      "eb25da24-af9a-404a-942d-68ab9d4aa26b",
+      "f7cf725c-d172-47d9-92c5-262abe9de966"
+     ],
+     "competing_hypotheses": [
+      {
+       "key": "config_inventory",
+       "status": "WEAKENED",
+       "component": "inventory-service",
+       "confidence": 0.1,
+       "description": "A recent configuration change to inventory-service caused the incident.",
+       "cause_category": "configuration",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "fb2bbb7c-22b1-4caf-8c5e-1f0c059aef49"
+       ]
+      },
+      {
+       "key": "dep_inventory-db",
+       "status": "WEAKENED",
+       "component": "inventory-db",
+       "confidence": 0.1,
+       "description": "inventory-db, a dependency of inventory-service, is failing or slow.",
+       "cause_category": "database",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "48f4c193-6157-4f11-9121-4cf2742ecb5e"
+       ]
+      },
+      {
+       "key": "deploy_inventory",
+       "status": "WEAKENED",
+       "component": "inventory-service",
+       "confidence": 0.1,
+       "description": "A recent deployment change to inventory-service caused the incident.",
+       "cause_category": "deployment",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "629e5a94-5b11-40d3-badb-9c51c38dbbef"
+       ]
+      },
+      {
+       "key": "resource_cpu",
+       "status": "WEAKENED",
+       "component": "inventory-service",
+       "confidence": 0.1,
+       "description": "inventory-service is failing because of resource cpu.",
+       "cause_category": "resource_cpu",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "0f858dfc-a0e4-4192-a71e-a45ee2432af9"
+       ]
+      },
+      {
+       "key": "resource_memory",
+       "status": "WEAKENED",
+       "component": "inventory-service",
+       "confidence": 0.1,
+       "description": "inventory-service is failing because of resource memory.",
+       "cause_category": "resource_memory",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "c5005e6a-c72e-4245-a8c8-cd0c0f5c1e06"
+       ]
+      },
+      {
+       "key": "traffic",
+       "status": "WEAKENED",
+       "component": "inventory-service",
+       "confidence": 0.1,
+       "description": "inventory-service is failing because of traffic.",
+       "cause_category": "traffic",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "6034233b-7e3d-48d6-a053-7e5318bc7d95"
+       ]
+      }
+     ],
+     "contributing_factors": [],
+     "unresolved_questions": [],
+     "investigation_actions": [
+      {
+       "ok": true,
+       "tool": "get_service_health",
+       "summary": "inventory-service is down at 2026-09-26T17:48:47.337509+00:00 (no threshold violations)",
+       "arguments": {
+        "service": "inventory-service"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "eb25da24-af9a-404a-942d-68ab9d4aa26b"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_metric_window",
+       "summary": "error_rate for inventory-service: current=0.20%, window avg=0.20% vs baseline avg=0.20% (flat)",
+       "arguments": {
+        "metric": "error_rate",
+        "service": "inventory-service"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "75b0c5c6-ac35-43ff-91af-8b4ea9841811"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_metric_window",
+       "summary": "latency_p95 for inventory-service: current=120.0ms, window avg=120.0ms vs baseline avg=120.0ms (flat)",
+       "arguments": {
+        "metric": "latency_p95",
+        "service": "inventory-service"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "2aab1ef3-b2c0-4423-99f4-3dcaddffd3a9"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_recent_deployments",
+       "summary": "inventory-service running 1.0.0 (from None, deployed 2026-09-23T17:48:47.294980+00:00); 0 deployment(s) in window",
+       "arguments": {
+        "service": "inventory-service"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "629e5a94-5b11-40d3-badb-9c51c38dbbef"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_config_changes",
+       "summary": "0 config change(s) for inventory-service in window; effective: none on record",
+       "arguments": {
+        "service": "inventory-service"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "fb2bbb7c-22b1-4caf-8c5e-1f0c059aef49"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_logs",
+       "summary": "3 matching log lines for inventory-service (3 ERROR/CRITICAL) in window; top: 'node ip-10-0-3-17 NotReady: kubelet stopped posting status; pod evicted' x3",
+       "arguments": {
+        "service": "inventory-service",
+        "severities": [
+         "ERROR",
+         "WARNING",
+         "CRITICAL"
+        ]
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "f7cf725c-d172-47d9-92c5-262abe9de966"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_service_health",
+       "summary": "inventory-db is healthy at 2026-09-26T17:48:47.378591+00:00 (no threshold violations)",
+       "arguments": {
+        "service": "inventory-db"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "48f4c193-6157-4f11-9121-4cf2742ecb5e"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_metric_window",
+       "summary": "request_rate for inventory-service: current=0 req/s, window avg=31.5 req/s vs baseline avg=40 req/s (down)",
+       "arguments": {
+        "metric": "request_rate",
+        "service": "inventory-service"
+       },
+       "iteration": 2,
+       "evidence_ids": [
+        "6034233b-7e3d-48d6-a053-7e5318bc7d95"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_metric_window",
+       "summary": "cpu_usage for inventory-service: current=30.00%, window avg=30.00% vs baseline avg=30.00% (flat)",
+       "arguments": {
+        "metric": "cpu_usage",
+        "service": "inventory-service"
+       },
+       "iteration": 2,
+       "evidence_ids": [
+        "0f858dfc-a0e4-4192-a71e-a45ee2432af9"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_metric_window",
+       "summary": "memory_usage for inventory-service: current=120.0MB, window avg=120.0MB vs baseline avg=120.0MB (flat)",
+       "arguments": {
+        "metric": "memory_usage",
+        "service": "inventory-service"
+       },
+       "iteration": 2,
+       "evidence_ids": [
+        "c5005e6a-c72e-4245-a8c8-cd0c0f5c1e06"
+       ]
+      }
+     ],
+     "root_cause_hypothesis": {
+      "key": "infra",
+      "component": "inventory-service",
+      "description": "The platform running inventory-service failed.",
+      "cause_category": "infrastructure"
+     },
+     "contradicting_evidence": [],
+     "recommended_next_diagnostic_action": "Confirm with the owners of inventory-service."
+    }
+   }
+  }
+ ],
+ "remediations": [],
+ "verifications": [],
+ "evidence": [
+  {
+   "id": "eb25da24-af9a-404a-942d-68ab9d4aa26b",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "18dd3415-44f0-4f96-b8fb-fe44d920e983",
+   "content_hash": "sha256:c17334250dc5b639a36ea4661accd2fae96abc6967118ddcb39d276d998eb46d",
+   "collected_at": "2026-09-26T17:48:47.338513+00:00"
+  },
+  {
+   "id": "75b0c5c6-ac35-43ff-91af-8b4ea9841811",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "18dd3415-44f0-4f96-b8fb-fe44d920e983",
+   "content_hash": "sha256:86c0e9d7cbb62eb6cc755b0bbfae120fadef4edf1e2be98d76930ee92bbc0132",
+   "collected_at": "2026-09-26T17:48:47.346419+00:00"
+  },
+  {
+   "id": "2aab1ef3-b2c0-4423-99f4-3dcaddffd3a9",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "18dd3415-44f0-4f96-b8fb-fe44d920e983",
+   "content_hash": "sha256:165f6faac7dcc6d2c584f26f5f4224ecd1a53389cc23dac740f37aaccacb2f6e",
+   "collected_at": "2026-09-26T17:48:47.354268+00:00"
+  },
+  {
+   "id": "629e5a94-5b11-40d3-badb-9c51c38dbbef",
+   "evidence_type": "deployment",
+   "source_system": "deployment-registry",
+   "investigation_id": "18dd3415-44f0-4f96-b8fb-fe44d920e983",
+   "content_hash": "sha256:c5809faef5923ec08a1c17cba811a600550e3858e3e48722a8802da59da940ba",
+   "collected_at": "2026-09-26T17:48:47.360258+00:00"
+  },
+  {
+   "id": "fb2bbb7c-22b1-4caf-8c5e-1f0c059aef49",
+   "evidence_type": "configuration",
+   "source_system": "config-registry",
+   "investigation_id": "18dd3415-44f0-4f96-b8fb-fe44d920e983",
+   "content_hash": "sha256:7daeea6a89c703b93ecc11ee15a3b56d27bed563b7822af498c1cb03f935a113",
+   "collected_at": "2026-09-26T17:48:47.365700+00:00"
+  },
+  {
+   "id": "f7cf725c-d172-47d9-92c5-262abe9de966",
+   "evidence_type": "log",
+   "source_system": "loki",
+   "investigation_id": "18dd3415-44f0-4f96-b8fb-fe44d920e983",
+   "content_hash": "sha256:6d11257f24bbb629ff85c207a1549c53e341f9c22b9f338448314a432ad96924",
+   "collected_at": "2026-09-26T17:48:47.372268+00:00"
+  },
+  {
+   "id": "48f4c193-6157-4f11-9121-4cf2742ecb5e",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "18dd3415-44f0-4f96-b8fb-fe44d920e983",
+   "content_hash": "sha256:d36d415361c7ef70a4a5a64b6f1ac7d634445e6c642c4e2b0f5a0acd1b6baaaa",
+   "collected_at": "2026-09-26T17:48:47.379512+00:00"
+  },
+  {
+   "id": "6034233b-7e3d-48d6-a053-7e5318bc7d95",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "18dd3415-44f0-4f96-b8fb-fe44d920e983",
+   "content_hash": "sha256:879b6b3be22321d8fd324080f6068391288a470ebcc713b60b7e40f0b06f57c5",
+   "collected_at": "2026-09-26T17:48:47.397415+00:00"
+  },
+  {
+   "id": "0f858dfc-a0e4-4192-a71e-a45ee2432af9",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "18dd3415-44f0-4f96-b8fb-fe44d920e983",
+   "content_hash": "sha256:e7bbc907c26f0598146de5b1b0093bca634dc7bf48489aaf8e5cb9998173965d",
+   "collected_at": "2026-09-26T17:48:47.405942+00:00"
+  },
+  {
+   "id": "c5005e6a-c72e-4245-a8c8-cd0c0f5c1e06",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "18dd3415-44f0-4f96-b8fb-fe44d920e983",
+   "content_hash": "sha256:a861f951fb50c92dc56be2268422aa65d03cff65af23f26d2990481b82c16c0a",
+   "collected_at": "2026-09-26T17:48:47.413955+00:00"
+  }
+ ],
+ "timeline": [
+  {
+   "at": "2026-09-26T17:48:47.294140+00:00",
+   "kind": "alert",
+   "title": "ServiceDown fired on inventory-service",
+   "ref": "8c7f0812-e25b-4592-80ca-94825a004d10"
+  },
+  {
+   "at": "2026-09-26T17:48:47.303726+00:00",
+   "kind": "state",
+   "title": "TRIAGING \u2192 INVESTIGATING",
+   "detail": "investigation_started"
+  },
+  {
+   "at": "2026-09-26T17:48:47.304911Z",
+   "kind": "investigation",
+   "title": "Investigation attempt 1 started",
+   "detail": "heuristic-investigator"
+  },
+  {
+   "at": "2026-09-26T17:48:47.342890Z",
+   "kind": "evidence",
+   "title": "get_service_health: inventory-service is down at 2026-09-26T17:48:47.337509+00:00 (no threshold violations)",
+   "evidence_ids": [
+    "eb25da24-af9a-404a-942d-68ab9d4aa26b"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.351181Z",
+   "kind": "evidence",
+   "title": "get_metric_window: error_rate for inventory-service: current=0.20%, window avg=0.20% vs baseline avg=0.20% (flat)",
+   "evidence_ids": [
+    "75b0c5c6-ac35-43ff-91af-8b4ea9841811"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.358303Z",
+   "kind": "evidence",
+   "title": "get_metric_window: latency_p95 for inventory-service: current=120.0ms, window avg=120.0ms vs baseline avg=120.0ms (flat)",
+   "evidence_ids": [
+    "2aab1ef3-b2c0-4423-99f4-3dcaddffd3a9"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.363832Z",
+   "kind": "evidence",
+   "title": "get_recent_deployments: inventory-service running 1.0.0 (from None, deployed 2026-09-23T17:48:47.294980+00:00); 0 deployment(s) in window",
+   "evidence_ids": [
+    "629e5a94-5b11-40d3-badb-9c51c38dbbef"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.369498Z",
+   "kind": "evidence",
+   "title": "get_config_changes: 0 config change(s) for inventory-service in window; effective: none on record",
+   "evidence_ids": [
+    "fb2bbb7c-22b1-4caf-8c5e-1f0c059aef49"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.376423Z",
+   "kind": "evidence",
+   "title": "get_logs: 3 matching log lines for inventory-service (3 ERROR/CRITICAL) in window; top: 'node ip-10-0-3-17 NotReady: kubelet stopped posting status; pod evicted",
+   "evidence_ids": [
+    "f7cf725c-d172-47d9-92c5-262abe9de966"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.383741Z",
+   "kind": "evidence",
+   "title": "get_service_health: inventory-db is healthy at 2026-09-26T17:48:47.378591+00:00 (no threshold violations)",
+   "evidence_ids": [
+    "48f4c193-6157-4f11-9121-4cf2742ecb5e"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.402609Z",
+   "kind": "evidence",
+   "title": "get_metric_window: request_rate for inventory-service: current=0 req/s, window avg=31.5 req/s vs baseline avg=40 req/s (down)",
+   "evidence_ids": [
+    "6034233b-7e3d-48d6-a053-7e5318bc7d95"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.410699Z",
+   "kind": "evidence",
+   "title": "get_metric_window: cpu_usage for inventory-service: current=30.00%, window avg=30.00% vs baseline avg=30.00% (flat)",
+   "evidence_ids": [
+    "0f858dfc-a0e4-4192-a71e-a45ee2432af9"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.418470Z",
+   "kind": "evidence",
+   "title": "get_metric_window: memory_usage for inventory-service: current=120.0MB, window avg=120.0MB vs baseline avg=120.0MB (flat)",
+   "evidence_ids": [
+    "c5005e6a-c72e-4245-a8c8-cd0c0f5c1e06"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.439120Z",
+   "kind": "hypothesis",
+   "title": "deploy_inventory: new \u2192 WEAKENED"
+  },
+  {
+   "at": "2026-09-26T17:48:47.439120Z",
+   "kind": "hypothesis",
+   "title": "config_inventory: new \u2192 WEAKENED"
+  },
+  {
+   "at": "2026-09-26T17:48:47.439120Z",
+   "kind": "hypothesis",
+   "title": "dep_inventory-db: new \u2192 WEAKENED"
+  },
+  {
+   "at": "2026-09-26T17:48:47.439120Z",
+   "kind": "hypothesis",
+   "title": "resource_cpu: new \u2192 WEAKENED"
+  },
+  {
+   "at": "2026-09-26T17:48:47.439120Z",
+   "kind": "hypothesis",
+   "title": "resource_memory: new \u2192 WEAKENED"
+  },
+  {
+   "at": "2026-09-26T17:48:47.439120Z",
+   "kind": "hypothesis",
+   "title": "traffic: new \u2192 WEAKENED"
+  },
+  {
+   "at": "2026-09-26T17:48:47.439120Z",
+   "kind": "hypothesis",
+   "title": "infra: new \u2192 SUPPORTED"
+  },
+  {
+   "at": "2026-09-26T17:48:47.454939Z",
+   "kind": "rca",
+   "title": "RCA: infrastructure in inventory-service",
+   "ref": "2b8bd952-7f95-4c15-9adf-abe10b26efee"
+  },
+  {
+   "at": "2026-09-26T17:48:47.458486+00:00",
+   "kind": "state",
+   "title": "INVESTIGATING \u2192 RCA_READY",
+   "detail": "root_cause_selected"
+  }
+ ]
+}

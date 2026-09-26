@@ -91,6 +91,8 @@ class RemediationPlanner:
                     ),
                     "disable the feature flag that changed",
                 )
+            if change.get("old_value") is None:
+                return None, "the configuration change has no previous value to revert to"
             return (
                 proposal(
                     "revert_configuration",

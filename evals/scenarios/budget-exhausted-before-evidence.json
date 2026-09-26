@@ -75,5 +75,10 @@
   "budget": {
     "max_iterations": 3,
     "max_tool_calls": 4
+  },
+  "lifecycle": {
+    "expected_action": null,
+    "expected_verification": null,
+    "expected_final_state": "ESCALATED"
   }
 }

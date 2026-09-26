@@ -445,3 +445,17 @@ investigation row and checks the lease owner (fencing, ADR-0020).
 | `remediation_executions` | one per attempt: unique `(remediation_id, attempt_number)` and unique `idempotency_key`; status RUNNING / SUCCEEDED / FAILED / TIMED_OUT / UNKNOWN, owner, deadline, result, error. |
 | `remediation_timeline` | append-only audit: event, from/to status, actor, correlation id, action, catalog + policy version, details, time. Immutable. |
 | `kill_switches` | `global` or `service:<name>`; runtime-writable through incident-core only (ADR-0009). |
+
+## Phase 8: verification tables (migration `0007_verification`)
+
+| Table | Purpose | Mutability |
+|---|---|---|
+| `remediation_baselines` | one per remediation: the pre-action values (`values` JSONB) and when/by whom captured | insert-only |
+| `verifications` | one per executed remediation: frozen spec (checks, windows, policy version, baseline), status PENDING / RUNNING / PASSED / FAILED / TIMED_OUT, lease owner / expiry, `claim_attempt` (fencing), `consecutive_successes`, `observation_count`, `known_alert_ids` (snapshot at start), grace / deadline / next poll, result, `failure_reason`, `next_action` | status columns only; spec and identity frozen by trigger |
+| `verification_observations` | one row per poll: sample, per-check results, passed / conclusive, errors | insert-only |
+| `verification_evidence` | PK `(verification_id, evidence_id)`, FK to `evidence_refs`; `role` baseline or observation; `poll_sequence` (0 = baseline) | insert-only |
+
+The same migration rebuilds the partial unique index
+`incidents_open_correlation_key` to exclude `RESOLVED` (now a closed
+status); the repository's `ON CONFLICT … WHERE` predicate is derived from
+the same constant (`CLOSED_INCIDENT_STATUSES`) so the two cannot drift.

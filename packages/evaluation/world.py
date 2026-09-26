@@ -54,6 +54,16 @@ class ScenarioWorld:
         self.catalog = catalog
         self.anchor = anchor
         self._queries = self._query_index()
+        # Mutable world state (Phase 8 lifecycle evaluation): the change
+        # records the registries serve, the runtime control plane, and when a
+        # remediation took effect. `ScenarioExecutor` changes these; the
+        # evidence path then observes the result, exactly like verification
+        # observes the live simulator.
+        self.records = self.change_records()
+        self.runtime: dict[str, dict[str, Any]] = {}
+        self.remediated_at: datetime | None = None
+        lifecycle = scenario.lifecycle
+        self.remediation_effective = lifecycle.remediation_effective if lifecycle else True
 
     def at(self, minutes: float) -> datetime:
         return self.anchor + timedelta(minutes=minutes)
@@ -83,6 +93,8 @@ class ScenarioWorld:
         series = self._series(service, metric, dependency)
         baseline = series.baseline if series.baseline is not None else HEALTHY_DEFAULTS[metric]
         incident = series.incident if series.incident is not None else baseline
+        if self.remediation_effective and self.remediated_at and at >= self.remediated_at:
+            return baseline  # the fix took: every signal returns to its baseline
         return incident if at >= self.at(series.change_at_min) else baseline
 
     def _metric_series_labels(self, metric: str, service: str) -> list[dict[str, str]]:
@@ -275,7 +287,9 @@ class ScenarioWorld:
 
     def change_registry(self) -> FixtureChangeRegistry:
         return FixtureChangeRegistry(
-            self.change_records(), available="changes" not in self.scenario.world.unavailable
+            self.records,
+            available="changes" not in self.scenario.world.unavailable,
+            runtime=self.runtime,
         )
 
     def git(self) -> FixtureGit:
@@ -308,14 +322,27 @@ class FixtureChangeRegistry(ChangeRegistryAdapter):
     """The real adapter's windowing/normalization over scenario records
     instead of Redis lists."""
 
-    def __init__(self, records: dict[str, list[dict[str, Any]]], *, available: bool) -> None:
+    def __init__(
+        self,
+        records: dict[str, list[dict[str, Any]]],
+        *,
+        available: bool,
+        runtime: dict[str, dict[str, Any]] | None = None,
+    ) -> None:
         self._records = records
         self._available = available
+        self._runtime_state = runtime if runtime is not None else {}
 
     def _read(self, key: str) -> list[dict[str, Any]]:
         if not self._available:
             raise BackendUnavailableError("change registry unreachable")
         return list(self._records.get(key, []))
+
+    def _runtime(self, service: str) -> tuple[int, dict[str, str]]:
+        if not self._available:
+            raise BackendUnavailableError("runtime registry unreachable")
+        state = self._runtime_state.get(service, {})
+        return int(state.get("replicas", 1)), dict(state.get("flags", {}))
 
 
 class FixtureGit(GitAdapter):

@@ -1,6 +1,7 @@
 .PHONY: install fmt lint typecheck test test-unit test-integration test-e2e test-stack \
         infra-up infra-up-full infra-down infra-logs migrate migrate-down run-api run-worker \
-        run-consumer run-evidence run-investigation-worker run-remediation-worker investigate-live eval-db eval-migrate eval eval-live replay send-alert seed-changes chaos-list chaos-status
+        run-consumer run-evidence run-investigation-worker run-remediation-worker investigate-live eval-db eval-migrate eval eval-live replay send-alert seed-changes chaos-list chaos-status \
+        run-verification-worker seed-demo dashboard-install dashboard-dev dashboard-check dashboard-e2e
 
 # Every target sees .env (Alembic's env.py and the CLIs read os.environ).
 -include .env
@@ -83,6 +84,29 @@ run-investigation-worker:
 # approved remediations, approval timeouts, crash recovery). No model.
 run-remediation-worker:
 	python -m apps.worker.remediation_main
+
+# Phase 8: verification worker (VerificationRequested consumer + ticks over
+# due verifications). Deterministic; evidence only; no model.
+run-verification-worker:
+	python -m apps.worker.verification_main
+
+# Phase 8: add demo incidents in every lifecycle state to the dev DB
+# (scenario worlds; touches no simulator or live system).
+seed-demo:
+	python scripts/seed_demo.py --yes
+
+# Phase 8: operations console (apps/dashboard). Needs Node >= 22.12.
+dashboard-install:
+	cd apps/dashboard && IBM_TELEMETRY_DISABLED=true npm ci
+
+dashboard-dev:
+	cd apps/dashboard && npm run dev
+
+dashboard-check:
+	cd apps/dashboard && npm run typecheck && npm test && npm run build
+
+dashboard-e2e:
+	cd apps/dashboard && npx playwright test
 
 # Phase 5: ONE manual, real-model investigation of a live bad-deployment
 # incident (needs `make infra-up-full`, `make migrate`, Anthropic

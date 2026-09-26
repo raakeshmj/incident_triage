@@ -440,3 +440,91 @@ class KillSwitchRow(Base):
     changed_by: Mapped[str | None] = mapped_column(String, nullable=True)
     reason: Mapped[str | None] = mapped_column(String, nullable=True)
     changed_at: Mapped[datetime.datetime] = _ts(default=True)
+
+
+# --- Phase 8: verification (migration 0007_verification) -----------------------------
+
+
+class RemediationBaselineRow(Base):
+    __tablename__ = "remediation_baselines"
+    __table_args__ = {"schema": SCHEMA}
+
+    remediation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.remediations.id"), primary_key=True
+    )
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    values: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    evidence_ids: Mapped[list] = mapped_column(JSONB, nullable=False)
+    error: Mapped[str | None] = mapped_column(String, nullable=True)
+    captured_at: Mapped[datetime.datetime] = _ts(default=True)
+
+
+class VerificationRow(Base):
+    """Spec, baseline and identity columns are immutable (trigger)."""
+
+    __tablename__ = "verifications"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    incident_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.incidents.id"), nullable=False
+    )
+    remediation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.remediations.id"), nullable=False, unique=True
+    )
+    verification_type: Mapped[str] = mapped_column(String, nullable=False)
+    policy_version: Mapped[str] = mapped_column(String, nullable=False)
+    spec: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    baseline: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    consecutive_successes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    observation_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    conclusive_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    result: Mapped[str | None] = mapped_column(String, nullable=True)
+    failure_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    next_action: Mapped[str | None] = mapped_column(String, nullable=True)
+    correlation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    grace_until: Mapped[datetime.datetime | None] = _ts(nullable=True)
+    deadline_at: Mapped[datetime.datetime | None] = _ts(nullable=True)
+    next_poll_at: Mapped[datetime.datetime | None] = _ts(nullable=True)
+    lease_owner: Mapped[str | None] = mapped_column(String, nullable=True)
+    lease_expires_at: Mapped[datetime.datetime | None] = _ts(nullable=True)
+    claim_attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    known_alert_ids: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    started_at: Mapped[datetime.datetime | None] = _ts(nullable=True)
+    completed_at: Mapped[datetime.datetime | None] = _ts(nullable=True)
+    created_at: Mapped[datetime.datetime] = _ts(default=True)
+    updated_at: Mapped[datetime.datetime] = _ts(default=True)
+
+
+class VerificationObservationRow(Base):
+    __tablename__ = "verification_observations"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    verification_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.verifications.id"), nullable=False
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    claim_attempt: Mapped[int] = mapped_column(Integer, nullable=False)
+    observed_at: Mapped[datetime.datetime] = _ts()
+    passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    conclusive: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    checks: Mapped[list] = mapped_column(JSONB, nullable=False)
+    errors: Mapped[list] = mapped_column(JSONB, nullable=False)
+    evidence_ids: Mapped[list] = mapped_column(JSONB, nullable=False)
+
+
+class VerificationEvidenceRow(Base):
+    __tablename__ = "verification_evidence"
+    __table_args__ = {"schema": SCHEMA}
+
+    verification_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.verifications.id"), primary_key=True
+    )
+    evidence_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.evidence_refs.id"), primary_key=True
+    )
+    poll_sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    role: Mapped[str] = mapped_column(String, nullable=False)
+    collected_at: Mapped[datetime.datetime] = _ts()

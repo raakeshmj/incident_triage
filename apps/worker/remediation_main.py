@@ -48,13 +48,17 @@ from packages.events.streams import all_stream_names, consumer_group_name, consu
 from packages.evidence.db.base import make_engine as make_evidence_engine
 from packages.evidence.db.base import make_session_factory as make_evidence_sessions
 from packages.evidence.scope import ServiceCatalog
+from packages.evidence.service import EvidenceService
 from packages.incident.db.base import make_engine, make_session_factory
 from packages.incident.investigations import InvestigationCoreService
 from packages.incident.remediations import RemediationCoreService
 from packages.remediation.executor import RemediationExecutor, SimulatorRemediationExecutor
 from packages.remediation.planner import EvidenceReader, RemediationPlanner
 from packages.remediation.runner import RemediationRunner
+from packages.telemetry.heartbeat import Heartbeat
 from packages.telemetry.logging import configure_logging, get_logger
+from packages.verification.engine import BaselineCollector
+from packages.verification.observer import EvidenceObserver
 
 log = get_logger(__name__)
 
@@ -67,6 +71,10 @@ class RemediationSettings(BaseSettings):
     remediation_approval_timeout_minutes: int = 30
     remediation_lease_seconds: int = 120
     remediation_service_catalog_path: str | None = None
+    # Multiplies every verification window (grace, poll interval, window,
+    # timeout) declared in the action catalog. 1.0 in production; tests and
+    # demos shorten it. Recorded in each verification's persisted spec.
+    verification_time_scale: float = 1.0
 
 
 class _StoredEvidence:
@@ -133,6 +141,7 @@ def build_runtime(
     catalog: ServiceCatalog | None = None,
     settings: RemediationSettings | None = None,
     owner: str | None = None,
+    evidence_service: EvidenceService | None = None,
 ) -> RemediationRuntime:
     settings = settings or RemediationSettings()
     sessions = make_session_factory(make_engine(database_url))
@@ -146,7 +155,12 @@ def build_runtime(
         sessions,
         topology=catalog,
         approval_timeout=timedelta(minutes=settings.remediation_approval_timeout_minutes),
+        verification_time_scale=settings.verification_time_scale,
     )
+    if evidence_service is None:
+        from apps.evidence.dependencies import get_evidence_service
+
+        evidence_service = get_evidence_service()
     if executor is None:
         executor = SimulatorRemediationExecutor(
             redis_lib.from_url(
@@ -166,6 +180,7 @@ def build_runtime(
             executor,
             owner=owner or f"{socket.gethostname()}:{os.getpid()}",
             lease_seconds=settings.remediation_lease_seconds,
+            baseline=BaselineCollector(remediations, EvidenceObserver(evidence_service)),
         ),
     )
 
@@ -208,7 +223,11 @@ def run_forever(idle_sleep_seconds: float = 2.0) -> None:
         runtime, worker, redis_lib.from_url(worker.redis_url, decode_responses=True)
     )
     log.info("remediation_worker.started", policy=runtime.remediations.policy.version)
+    heartbeat = Heartbeat(
+        redis_lib.from_url(worker.redis_url, decode_responses=True), CONSUMER_PURPOSE
+    )
     while True:
+        heartbeat.beat(policy=runtime.remediations.policy.version)
         handled = sum(consumer.run_once() for consumer in consumers)
         swept = runtime.sweep()
         if handled == 0 and swept == 0:

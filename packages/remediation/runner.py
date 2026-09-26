@@ -42,12 +42,14 @@ class RemediationRunner:
         owner: str,
         lease_seconds: int = 120,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        baseline: Callable[[ExecutionTicket, str], bool] | None = None,
     ) -> None:
         self._core = remediations
         self._executor = executor
         self._owner = owner
         self._lease_seconds = lease_seconds
         self._clock = clock
+        self._baseline = baseline
 
     def run(self, remediation_id: uuid.UUID) -> RemediationView:
         for _ in range(_MAX_CLAIMS):
@@ -82,6 +84,18 @@ class RemediationRunner:
         return self._complete(ticket, known, reconciled=True)
 
     def _execute(self, ticket: ExecutionTicket) -> RemediationView:
+        if self._baseline is not None and not self._baseline(ticket, self._owner):
+            # the verification policy needs a "before" and we can't observe
+            # one: don't act blind (nothing was executed; retry-safe actions
+            # try again on their next attempt)
+            return self._core.complete_execution(
+                ticket.execution_id,
+                owner=self._owner,
+                outcome="failed",
+                executor="none",
+                error="pre-remediation baseline unavailable; action not executed",
+                retryable=True,
+            )
         request = ExecutionRequest(
             execution_id=str(ticket.execution_id),
             idempotency_key=ticket.idempotency_key,

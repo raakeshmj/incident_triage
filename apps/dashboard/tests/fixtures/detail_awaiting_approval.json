@@ -1,0 +1,1261 @@
+{
+ "incident": {
+  "id": "1d5379c7-f9f9-4c81-9b08-56ec31d5d617",
+  "status": "AWAITING_APPROVAL",
+  "severity": "critical",
+  "service": "payment-service",
+  "environment": "staging",
+  "correlation_key": "acc7d97b4eb0df9f645285d8875c4d1f9559cdd038cbd0edb34c215d5032fd46:1989383",
+  "attempt_count": 1,
+  "version": 3,
+  "created_at": "2026-09-26T17:48:47.484602+00:00",
+  "updated_at": "2026-09-26T17:48:47.665297+00:00",
+  "ended_at": null,
+  "duration_seconds": 50.4
+ },
+ "alerts": [
+  {
+   "id": "bc917a2c-7c13-41c1-9e68-de4e501ce495",
+   "alertname": "HighErrorRate",
+   "service": "payment-service",
+   "severity": "critical",
+   "status": "firing",
+   "source": "prometheus",
+   "summary": "payment-service 5xx ratio above 10%",
+   "received_at": "2026-09-26T17:48:47.484602+00:00",
+   "resolved_at": null
+  }
+ ],
+ "transitions": [
+  {
+   "at": "2026-09-26T17:48:47.493841+00:00",
+   "from": "TRIAGING",
+   "to": "INVESTIGATING",
+   "reason": "investigation_started"
+  },
+  {
+   "at": "2026-09-26T17:48:47.649262+00:00",
+   "from": "INVESTIGATING",
+   "to": "RCA_READY",
+   "reason": "root_cause_selected"
+  },
+  {
+   "at": "2026-09-26T17:48:47.666099+00:00",
+   "from": "RCA_READY",
+   "to": "AWAITING_APPROVAL",
+   "reason": "remediation_awaiting_approval"
+  }
+ ],
+ "investigations": [
+  {
+   "investigation": {
+    "id": "d2999e48-29e0-411a-827c-949541601df6",
+    "incident_id": "1d5379c7-f9f9-4c81-9b08-56ec31d5d617",
+    "attempt_number": 1,
+    "status": "COMPLETED",
+    "model_provider": "fake",
+    "model_name": "heuristic-investigator",
+    "model_settings": {
+     "effort": null,
+     "thinking": "none",
+     "max_tokens": 4096,
+     "max_retries": 0,
+     "prompt_cache": "off",
+     "prompt_version": "investigation-v2",
+     "timeout_seconds": 10
+    },
+    "budget": {
+     "max_iterations": 15,
+     "max_tool_calls": 25,
+     "max_identical_tool_calls": 2,
+     "max_evidence_items": 40,
+     "max_wall_clock_seconds": 900,
+     "max_total_tokens": 600000,
+     "max_consecutive_invalid_turns": 3,
+     "max_consecutive_tool_failures": 5
+    },
+    "iteration_count": 4,
+    "tool_call_count": 10,
+    "evidence_count": 10,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": 0,
+    "cache_creation_tokens": 0,
+    "last_action": "completed",
+    "failure_reason": null,
+    "escalation_reason": null,
+    "inconclusive_reason": null,
+    "selected_hypothesis_id": "241384af-d62b-42f2-aa94-1be178ca7a6a",
+    "final_result": {
+     "outcome": "root_cause_identified",
+     "confidence": 0.8,
+     "rca_report_id": "29db13b5-604c-47e6-ab7e-cf028cee07bd",
+     "selected_hypothesis_key": "config_payment-s"
+    },
+    "created_at": "2026-09-26T17:48:47.492387Z",
+    "started_at": "2026-09-26T17:48:47.494911Z",
+    "completed_at": "2026-09-26T17:48:47.645864Z"
+   },
+   "hypotheses": [
+    {
+     "key": "config_payment-s",
+     "description": "A recent configuration change to payment-service caused the incident.",
+     "cause_category": "configuration",
+     "component": "payment-service",
+     "status": "SELECTED",
+     "confidence": 0.8,
+     "supporting_evidence_ids": [
+      "63f11953-7f4c-432c-87d5-6c82d222d48a",
+      "80e94893-de0e-4985-ad73-4a51741ff97f",
+      "c8623cf1-76df-4770-a11d-69db35d24b58"
+     ],
+     "contradicting_evidence_ids": [],
+     "missing_evidence": []
+    },
+    {
+     "key": "dep_payment-gate",
+     "description": "payment-gateway, a dependency of payment-service, is failing or slow.",
+     "cause_category": "dependency",
+     "component": "payment-gateway",
+     "status": "WEAKENED",
+     "confidence": 0.1,
+     "supporting_evidence_ids": [],
+     "contradicting_evidence_ids": [
+      "50081703-954f-43f2-8bfb-15899dff6c58"
+     ],
+     "missing_evidence": []
+    },
+    {
+     "key": "deploy_payment-s",
+     "description": "A recent deployment change to payment-service caused the incident.",
+     "cause_category": "deployment",
+     "component": "payment-service",
+     "status": "WEAKENED",
+     "confidence": 0.1,
+     "supporting_evidence_ids": [],
+     "contradicting_evidence_ids": [
+      "0bccefae-7d4f-44f9-a1d9-0b1c76a27be8"
+     ],
+     "missing_evidence": []
+    },
+    {
+     "key": "resource_cpu",
+     "description": "payment-service is failing because of resource cpu.",
+     "cause_category": "resource_cpu",
+     "component": "payment-service",
+     "status": "WEAKENED",
+     "confidence": 0.1,
+     "supporting_evidence_ids": [],
+     "contradicting_evidence_ids": [
+      "c52ee8ea-1909-48ac-ae7f-ebacd8d98581"
+     ],
+     "missing_evidence": []
+    },
+    {
+     "key": "resource_memory",
+     "description": "payment-service is failing because of resource memory.",
+     "cause_category": "resource_memory",
+     "component": "payment-service",
+     "status": "WEAKENED",
+     "confidence": 0.1,
+     "supporting_evidence_ids": [],
+     "contradicting_evidence_ids": [
+      "bd1fe195-242f-4099-a7a2-bf865f30cdcb"
+     ],
+     "missing_evidence": []
+    },
+    {
+     "key": "traffic",
+     "description": "payment-service is failing because of traffic.",
+     "cause_category": "traffic",
+     "component": "payment-service",
+     "status": "WEAKENED",
+     "confidence": 0.1,
+     "supporting_evidence_ids": [],
+     "contradicting_evidence_ids": [
+      "af6a2bbf-e2c3-4ff6-b0b1-3aced6faeffc"
+     ],
+     "missing_evidence": []
+    }
+   ],
+   "tool_calls": [
+    {
+     "sequence": 4,
+     "iteration": 1,
+     "at": "2026-09-26T17:48:47.532823Z",
+     "tool": "get_service_health",
+     "arguments": {
+      "service": "payment-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "payment-service is degraded at 2026-09-26T17:48:47.527221+00:00 (error_rate)",
+     "evidence_ids": [
+      "3f19cc38-05ad-42fa-a875-2da217d22e41"
+     ]
+    },
+    {
+     "sequence": 5,
+     "iteration": 1,
+     "at": "2026-09-26T17:48:47.542137Z",
+     "tool": "get_metric_window",
+     "arguments": {
+      "metric": "error_rate",
+      "service": "payment-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "error_rate for payment-service: current=38.00%, window avg=9.50% vs baseline avg=0.20% (up)",
+     "evidence_ids": [
+      "80e94893-de0e-4985-ad73-4a51741ff97f"
+     ]
+    },
+    {
+     "sequence": 6,
+     "iteration": 1,
+     "at": "2026-09-26T17:48:47.549985Z",
+     "tool": "get_metric_window",
+     "arguments": {
+      "metric": "latency_p95",
+      "service": "payment-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "latency_p95 for payment-service: current=120.0ms, window avg=120.0ms vs baseline avg=120.0ms (flat)",
+     "evidence_ids": [
+      "acdb7184-cac8-432c-8721-6b9483ae792c"
+     ]
+    },
+    {
+     "sequence": 7,
+     "iteration": 1,
+     "at": "2026-09-26T17:48:47.556211Z",
+     "tool": "get_recent_deployments",
+     "arguments": {
+      "service": "payment-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "payment-service running 1.0.0 (from None, deployed 2026-09-23T17:48:47.485440+00:00); 0 deployment(s) in window",
+     "evidence_ids": [
+      "0bccefae-7d4f-44f9-a1d9-0b1c76a27be8"
+     ]
+    },
+    {
+     "sequence": 8,
+     "iteration": 1,
+     "at": "2026-09-26T17:48:47.562314Z",
+     "tool": "get_config_changes",
+     "arguments": {
+      "service": "payment-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "1 config change(s) for payment-service in window; effective: {'gateway_timeout_ms': 50}",
+     "evidence_ids": [
+      "63f11953-7f4c-432c-87d5-6c82d222d48a"
+     ]
+    },
+    {
+     "sequence": 9,
+     "iteration": 1,
+     "at": "2026-09-26T17:48:47.570636Z",
+     "tool": "get_logs",
+     "arguments": {
+      "service": "payment-service",
+      "severities": [
+       "ERROR",
+       "WARNING",
+       "CRITICAL"
+      ]
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "70 matching log lines for payment-service (70 ERROR/CRITICAL) in window; top: 'payment-gateway call timed out after 50ms' x70",
+     "evidence_ids": [
+      "c8623cf1-76df-4770-a11d-69db35d24b58"
+     ]
+    },
+    {
+     "sequence": 10,
+     "iteration": 1,
+     "at": "2026-09-26T17:48:47.577742Z",
+     "tool": "get_service_health",
+     "arguments": {
+      "service": "payment-gateway"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "payment-gateway is healthy at 2026-09-26T17:48:47.572764+00:00 (no threshold violations)",
+     "evidence_ids": [
+      "50081703-954f-43f2-8bfb-15899dff6c58"
+     ]
+    },
+    {
+     "sequence": 13,
+     "iteration": 2,
+     "at": "2026-09-26T17:48:47.595620Z",
+     "tool": "get_metric_window",
+     "arguments": {
+      "metric": "request_rate",
+      "service": "payment-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "request_rate for payment-service: current=50 req/s, window avg=50 req/s vs baseline avg=50 req/s (flat)",
+     "evidence_ids": [
+      "af6a2bbf-e2c3-4ff6-b0b1-3aced6faeffc"
+     ]
+    },
+    {
+     "sequence": 14,
+     "iteration": 2,
+     "at": "2026-09-26T17:48:47.603091Z",
+     "tool": "get_metric_window",
+     "arguments": {
+      "metric": "cpu_usage",
+      "service": "payment-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "cpu_usage for payment-service: current=30.00%, window avg=30.00% vs baseline avg=30.00% (flat)",
+     "evidence_ids": [
+      "c52ee8ea-1909-48ac-ae7f-ebacd8d98581"
+     ]
+    },
+    {
+     "sequence": 15,
+     "iteration": 2,
+     "at": "2026-09-26T17:48:47.610547Z",
+     "tool": "get_metric_window",
+     "arguments": {
+      "metric": "memory_usage",
+      "service": "payment-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "memory_usage for payment-service: current=120.0MB, window avg=120.0MB vs baseline avg=120.0MB (flat)",
+     "evidence_ids": [
+      "bd1fe195-242f-4099-a7a2-bf865f30cdcb"
+     ]
+    }
+   ],
+   "hypothesis_updates": [
+    {
+     "at": "2026-09-26T17:48:47.631669Z",
+     "iteration": 3,
+     "applied": [
+      {
+       "key": "deploy_payment-s",
+       "component": "payment-service",
+       "rationale": "0 supporting item(s) of types []; 1 contradicting.",
+       "to_status": "WEAKENED",
+       "confidence": 0.1,
+       "from_status": null,
+       "cause_category": "deployment",
+       "added_supporting": [],
+       "added_contradicting": [
+        "0bccefae-7d4f-44f9-a1d9-0b1c76a27be8"
+       ]
+      },
+      {
+       "key": "config_payment-s",
+       "component": "payment-service",
+       "rationale": "3 supporting item(s) of types ['configuration', 'log', 'metric']; 0 contradicting.",
+       "to_status": "SUPPORTED",
+       "confidence": 0.8,
+       "from_status": null,
+       "cause_category": "configuration",
+       "added_supporting": [
+        "63f11953-7f4c-432c-87d5-6c82d222d48a",
+        "80e94893-de0e-4985-ad73-4a51741ff97f",
+        "c8623cf1-76df-4770-a11d-69db35d24b58"
+       ],
+       "added_contradicting": []
+      },
+      {
+       "key": "dep_payment-gate",
+       "component": "payment-gateway",
+       "rationale": "0 supporting item(s) of types []; 1 contradicting.",
+       "to_status": "WEAKENED",
+       "confidence": 0.1,
+       "from_status": null,
+       "cause_category": "dependency",
+       "added_supporting": [],
+       "added_contradicting": [
+        "50081703-954f-43f2-8bfb-15899dff6c58"
+       ]
+      },
+      {
+       "key": "resource_cpu",
+       "component": "payment-service",
+       "rationale": "0 supporting item(s) of types []; 1 contradicting.",
+       "to_status": "WEAKENED",
+       "confidence": 0.1,
+       "from_status": null,
+       "cause_category": "resource_cpu",
+       "added_supporting": [],
+       "added_contradicting": [
+        "c52ee8ea-1909-48ac-ae7f-ebacd8d98581"
+       ]
+      },
+      {
+       "key": "resource_memory",
+       "component": "payment-service",
+       "rationale": "0 supporting item(s) of types []; 1 contradicting.",
+       "to_status": "WEAKENED",
+       "confidence": 0.1,
+       "from_status": null,
+       "cause_category": "resource_memory",
+       "added_supporting": [],
+       "added_contradicting": [
+        "bd1fe195-242f-4099-a7a2-bf865f30cdcb"
+       ]
+      },
+      {
+       "key": "traffic",
+       "component": "payment-service",
+       "rationale": "0 supporting item(s) of types []; 1 contradicting.",
+       "to_status": "WEAKENED",
+       "confidence": 0.1,
+       "from_status": null,
+       "cause_category": "traffic",
+       "added_supporting": [],
+       "added_contradicting": [
+        "af6a2bbf-e2c3-4ff6-b0b1-3aced6faeffc"
+       ]
+      }
+     ],
+     "rejected": [],
+     "hypotheses": [
+      {
+       "key": "deploy_payment-s",
+       "status": "WEAKENED",
+       "component": "payment-service",
+       "confidence": 0.1,
+       "description": "A recent deployment change to payment-service caused the incident.",
+       "cause_category": "deployment",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "0bccefae-7d4f-44f9-a1d9-0b1c76a27be8"
+       ]
+      },
+      {
+       "key": "config_payment-s",
+       "status": "SUPPORTED",
+       "component": "payment-service",
+       "confidence": 0.8,
+       "description": "A recent configuration change to payment-service caused the incident.",
+       "cause_category": "configuration",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [
+        "63f11953-7f4c-432c-87d5-6c82d222d48a",
+        "80e94893-de0e-4985-ad73-4a51741ff97f",
+        "c8623cf1-76df-4770-a11d-69db35d24b58"
+       ],
+       "contradicting_evidence_ids": []
+      },
+      {
+       "key": "dep_payment-gate",
+       "status": "WEAKENED",
+       "component": "payment-gateway",
+       "confidence": 0.1,
+       "description": "payment-gateway, a dependency of payment-service, is failing or slow.",
+       "cause_category": "dependency",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "50081703-954f-43f2-8bfb-15899dff6c58"
+       ]
+      },
+      {
+       "key": "resource_cpu",
+       "status": "WEAKENED",
+       "component": "payment-service",
+       "confidence": 0.1,
+       "description": "payment-service is failing because of resource cpu.",
+       "cause_category": "resource_cpu",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "c52ee8ea-1909-48ac-ae7f-ebacd8d98581"
+       ]
+      },
+      {
+       "key": "resource_memory",
+       "status": "WEAKENED",
+       "component": "payment-service",
+       "confidence": 0.1,
+       "description": "payment-service is failing because of resource memory.",
+       "cause_category": "resource_memory",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "bd1fe195-242f-4099-a7a2-bf865f30cdcb"
+       ]
+      },
+      {
+       "key": "traffic",
+       "status": "WEAKENED",
+       "component": "payment-service",
+       "confidence": 0.1,
+       "description": "payment-service is failing because of traffic.",
+       "cause_category": "traffic",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "af6a2bbf-e2c3-4ff6-b0b1-3aced6faeffc"
+       ]
+      }
+     ]
+    }
+   ],
+   "conclusion_rejections": [],
+   "rca": {
+    "id": "29db13b5-604c-47e6-ab7e-cf028cee07bd",
+    "summary": "Root cause (confidence 0.80): A recent configuration change to payment-service caused the incident. [63f11953, 80e94893, c8623cf1]\nSummary: payment-service degraded; evidence points to configuration in payment-service. [63f11953, 80e94893, c8623cf1]\nImpact: payment-service requests were affected. [80e94893]\nAffected services: payment-service [80e94893]\nTimeline:\n  2026-09-26T17:48:47.535103Z configuration anomaly observed in payment-service [63f11953]",
+    "report": {
+     "impact": {
+      "text": "payment-service requests were affected.",
+      "evidence_ids": [
+       "80e94893-de0e-4985-ad73-4a51741ff97f"
+      ]
+     },
+     "timeline": [
+      {
+       "at": "2026-09-26T17:48:47.535103Z",
+       "event": "configuration anomaly observed in payment-service",
+       "evidence_ids": [
+        "63f11953-7f4c-432c-87d5-6c82d222d48a"
+       ]
+      }
+     ],
+     "confidence": 0.8,
+     "root_cause": {
+      "text": "A recent configuration change to payment-service caused the incident.",
+      "evidence_ids": [
+       "63f11953-7f4c-432c-87d5-6c82d222d48a",
+       "80e94893-de0e-4985-ad73-4a51741ff97f",
+       "c8623cf1-76df-4770-a11d-69db35d24b58"
+      ]
+     },
+     "incident_summary": {
+      "text": "payment-service degraded; evidence points to configuration in payment-service.",
+      "evidence_ids": [
+       "63f11953-7f4c-432c-87d5-6c82d222d48a",
+       "80e94893-de0e-4985-ad73-4a51741ff97f",
+       "c8623cf1-76df-4770-a11d-69db35d24b58"
+      ]
+     },
+     "affected_services": [
+      {
+       "service": "payment-service",
+       "evidence_ids": [
+        "80e94893-de0e-4985-ad73-4a51741ff97f"
+       ]
+      }
+     ],
+     "supporting_evidence": [
+      "63f11953-7f4c-432c-87d5-6c82d222d48a",
+      "80e94893-de0e-4985-ad73-4a51741ff97f",
+      "c8623cf1-76df-4770-a11d-69db35d24b58"
+     ],
+     "competing_hypotheses": [
+      {
+       "key": "dep_payment-gate",
+       "status": "WEAKENED",
+       "component": "payment-gateway",
+       "confidence": 0.1,
+       "description": "payment-gateway, a dependency of payment-service, is failing or slow.",
+       "cause_category": "dependency",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "50081703-954f-43f2-8bfb-15899dff6c58"
+       ]
+      },
+      {
+       "key": "deploy_payment-s",
+       "status": "WEAKENED",
+       "component": "payment-service",
+       "confidence": 0.1,
+       "description": "A recent deployment change to payment-service caused the incident.",
+       "cause_category": "deployment",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "0bccefae-7d4f-44f9-a1d9-0b1c76a27be8"
+       ]
+      },
+      {
+       "key": "resource_cpu",
+       "status": "WEAKENED",
+       "component": "payment-service",
+       "confidence": 0.1,
+       "description": "payment-service is failing because of resource cpu.",
+       "cause_category": "resource_cpu",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "c52ee8ea-1909-48ac-ae7f-ebacd8d98581"
+       ]
+      },
+      {
+       "key": "resource_memory",
+       "status": "WEAKENED",
+       "component": "payment-service",
+       "confidence": 0.1,
+       "description": "payment-service is failing because of resource memory.",
+       "cause_category": "resource_memory",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "bd1fe195-242f-4099-a7a2-bf865f30cdcb"
+       ]
+      },
+      {
+       "key": "traffic",
+       "status": "WEAKENED",
+       "component": "payment-service",
+       "confidence": 0.1,
+       "description": "payment-service is failing because of traffic.",
+       "cause_category": "traffic",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "af6a2bbf-e2c3-4ff6-b0b1-3aced6faeffc"
+       ]
+      }
+     ],
+     "contributing_factors": [],
+     "unresolved_questions": [],
+     "investigation_actions": [
+      {
+       "ok": true,
+       "tool": "get_service_health",
+       "summary": "payment-service is degraded at 2026-09-26T17:48:47.527221+00:00 (error_rate)",
+       "arguments": {
+        "service": "payment-service"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "3f19cc38-05ad-42fa-a875-2da217d22e41"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_metric_window",
+       "summary": "error_rate for payment-service: current=38.00%, window avg=9.50% vs baseline avg=0.20% (up)",
+       "arguments": {
+        "metric": "error_rate",
+        "service": "payment-service"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "80e94893-de0e-4985-ad73-4a51741ff97f"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_metric_window",
+       "summary": "latency_p95 for payment-service: current=120.0ms, window avg=120.0ms vs baseline avg=120.0ms (flat)",
+       "arguments": {
+        "metric": "latency_p95",
+        "service": "payment-service"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "acdb7184-cac8-432c-8721-6b9483ae792c"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_recent_deployments",
+       "summary": "payment-service running 1.0.0 (from None, deployed 2026-09-23T17:48:47.485440+00:00); 0 deployment(s) in window",
+       "arguments": {
+        "service": "payment-service"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "0bccefae-7d4f-44f9-a1d9-0b1c76a27be8"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_config_changes",
+       "summary": "1 config change(s) for payment-service in window; effective: {'gateway_timeout_ms': 50}",
+       "arguments": {
+        "service": "payment-service"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "63f11953-7f4c-432c-87d5-6c82d222d48a"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_logs",
+       "summary": "70 matching log lines for payment-service (70 ERROR/CRITICAL) in window; top: 'payment-gateway call timed out after 50ms' x70",
+       "arguments": {
+        "service": "payment-service",
+        "severities": [
+         "ERROR",
+         "WARNING",
+         "CRITICAL"
+        ]
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "c8623cf1-76df-4770-a11d-69db35d24b58"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_service_health",
+       "summary": "payment-gateway is healthy at 2026-09-26T17:48:47.572764+00:00 (no threshold violations)",
+       "arguments": {
+        "service": "payment-gateway"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "50081703-954f-43f2-8bfb-15899dff6c58"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_metric_window",
+       "summary": "request_rate for payment-service: current=50 req/s, window avg=50 req/s vs baseline avg=50 req/s (flat)",
+       "arguments": {
+        "metric": "request_rate",
+        "service": "payment-service"
+       },
+       "iteration": 2,
+       "evidence_ids": [
+        "af6a2bbf-e2c3-4ff6-b0b1-3aced6faeffc"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_metric_window",
+       "summary": "cpu_usage for payment-service: current=30.00%, window avg=30.00% vs baseline avg=30.00% (flat)",
+       "arguments": {
+        "metric": "cpu_usage",
+        "service": "payment-service"
+       },
+       "iteration": 2,
+       "evidence_ids": [
+        "c52ee8ea-1909-48ac-ae7f-ebacd8d98581"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_metric_window",
+       "summary": "memory_usage for payment-service: current=120.0MB, window avg=120.0MB vs baseline avg=120.0MB (flat)",
+       "arguments": {
+        "metric": "memory_usage",
+        "service": "payment-service"
+       },
+       "iteration": 2,
+       "evidence_ids": [
+        "bd1fe195-242f-4099-a7a2-bf865f30cdcb"
+       ]
+      }
+     ],
+     "root_cause_hypothesis": {
+      "key": "config_payment-s",
+      "component": "payment-service",
+      "description": "A recent configuration change to payment-service caused the incident.",
+      "cause_category": "configuration"
+     },
+     "contradicting_evidence": [],
+     "recommended_next_diagnostic_action": "Confirm with the owners of payment-service."
+    }
+   }
+  }
+ ],
+ "remediations": [
+  {
+   "remediation": {
+    "id": "d8fee458-1f87-47ab-bec9-233b185bf251",
+    "incident_id": "1d5379c7-f9f9-4c81-9b08-56ec31d5d617",
+    "investigation_id": "d2999e48-29e0-411a-827c-949541601df6",
+    "action_id": "revert_configuration",
+    "catalog_version": "catalog-2026.09-1",
+    "parameters": {
+     "key": "gateway_timeout_ms",
+     "service": "payment-service",
+     "to_value": 5000,
+     "from_value": 50
+    },
+    "target_service": "payment-service",
+    "environment": "staging",
+    "reason": "RCA of investigation d2999e48-29e0-411a-827c-949541601df6: configuration in payment-service. A recent configuration change to payment-service caused the incident.",
+    "expected_effect": "gateway_timeout_ms back to 5000; errors return below 5%",
+    "blast_radius_tier": 2,
+    "proposal_hash": "sha256:e5ffffecce652015fb973adc7431aab58d263e3d8446fdd9940fdfb95a26b58c",
+    "source": "planner",
+    "proposed_by": "remediation-planner",
+    "status": "AWAITING_APPROVAL",
+    "policy_decision_id": "a6bf0055-5130-421e-abc0-f490f8ab6bd7",
+    "policy_decision": "REQUIRE_APPROVAL",
+    "approval_status": "pending",
+    "execution_status": null,
+    "execution_attempts": 0,
+    "executor_result": null,
+    "failure_reason": null,
+    "verification_ref": null,
+    "correlation_id": "1d5379c7-f9f9-4c81-9b08-56ec31d5d617",
+    "created_at": "2026-09-26T17:48:47.657674Z",
+    "updated_at": "2026-09-26T17:48:47.663602Z",
+    "completed_at": null
+   },
+   "policy_decisions": [
+    {
+     "id": "a6bf0055-5130-421e-abc0-f490f8ab6bd7",
+     "decision": "REQUIRE_APPROVAL",
+     "policy_version": "policy-2026.09-1",
+     "catalog_version": "catalog-2026.09-1",
+     "catalog_digest": "sha256:8b7b1528f7ac84e2a99c3135a2df052905ca188b306885c724c2c86723d1ab07",
+     "proposal_hash": "sha256:e5ffffecce652015fb973adc7431aab58d263e3d8446fdd9940fdfb95a26b58c",
+     "blast_radius_tier": 2,
+     "required_approver_roles": [
+      "service_owner"
+     ],
+     "rules": [
+      {
+       "detail": "global kill switch released",
+       "outcome": "pass",
+       "rule_id": "kill_switch.global"
+      },
+      {
+       "detail": "service kill switch released",
+       "outcome": "pass",
+       "rule_id": "kill_switch.service"
+      },
+      {
+       "detail": "action 'revert_configuration' is in catalog catalog-2026.09-1",
+       "outcome": "pass",
+       "rule_id": "action.known"
+      },
+      {
+       "detail": "parameters valid",
+       "outcome": "pass",
+       "rule_id": "action.parameters"
+      },
+      {
+       "detail": "catalog entry permits automatic execution: False (not used by this policy)",
+       "outcome": "pass",
+       "rule_id": "action.auto_execution_not_requested"
+      },
+      {
+       "detail": "target 'payment-service' is a catalogued service",
+       "outcome": "pass",
+       "rule_id": "target.known"
+      },
+      {
+       "detail": "target 'payment-service' is within the incident's service scope",
+       "outcome": "pass",
+       "rule_id": "target.in_incident_scope"
+      },
+      {
+       "detail": "environment 'staging' permitted by policy",
+       "outcome": "pass",
+       "rule_id": "environment.not_prohibited"
+      },
+      {
+       "detail": "revert_configuration allowed in 'staging'",
+       "outcome": "pass",
+       "rule_id": "environment.allowed_for_action"
+      },
+      {
+       "detail": "blast radius 2 vs revert_configuration maximum 2",
+       "outcome": "pass",
+       "rule_id": "blast_radius.action_max"
+      },
+      {
+       "detail": "blast radius 2 vs 'staging' maximum 2",
+       "outcome": "pass",
+       "rule_id": "blast_radius.environment_max"
+      },
+      {
+       "detail": "incident is RCA_READY",
+       "outcome": "pass",
+       "rule_id": "incident.remediable_status"
+      },
+      {
+       "detail": "a completed investigation with an accepted RCA exists",
+       "outcome": "pass",
+       "rule_id": "rca.required"
+      },
+      {
+       "detail": "target 'payment-service' vs root-cause component 'payment-service'",
+       "outcome": "pass",
+       "rule_id": "rca.target_matches_root_cause"
+      },
+      {
+       "detail": "0 remediation(s) already attempted for this incident (limit 2)",
+       "outcome": "pass",
+       "rule_id": "attempts.per_incident"
+      },
+      {
+       "detail": "2 execution(s) on payment-service in the last hour (limit 3)",
+       "outcome": "pass",
+       "rule_id": "attempts.per_service_per_hour"
+      },
+      {
+       "detail": "human approval required (service_owner)",
+       "outcome": "require_approval",
+       "rule_id": "approval.required"
+      }
+     ],
+     "reasons": [
+      "human approval required (service_owner)"
+     ],
+     "policy_context": {
+      "context_id": "d76644d3-89e2-4e0a-bb7b-9b4b52d81e89",
+      "captured_at": "2026-09-26T17:48:47.657674Z",
+      "incident_id": "1d5379c7-f9f9-4c81-9b08-56ec31d5d617",
+      "target_known": true,
+      "rca_available": true,
+      "rca_component": "payment-service",
+      "target_service": "payment-service",
+      "incident_status": "RCA_READY",
+      "proposal_source": "planner",
+      "incident_service": "payment-service",
+      "incident_severity": "critical",
+      "rca_cause_category": "configuration",
+      "incident_environment": "staging",
+      "investigation_status": "COMPLETED",
+      "action_blast_radius_tier": 2,
+      "target_in_incident_scope": true,
+      "global_kill_switch_engaged": false,
+      "service_kill_switch_engaged": false,
+      "attempted_remediations_this_incident": 0,
+      "remediation_executions_last_hour_for_target": 2
+     },
+     "evaluated_at": "2026-09-26T17:48:47.657674+00:00"
+    }
+   ],
+   "executions": [],
+   "timeline": [
+    {
+     "sequence": 1,
+     "event": "proposed",
+     "from_status": null,
+     "to_status": "PROPOSED",
+     "actor": "planner:remediation-planner",
+     "correlation_id": "1d5379c7-f9f9-4c81-9b08-56ec31d5d617",
+     "action_id": "revert_configuration",
+     "catalog_version": "catalog-2026.09-1",
+     "policy_version": null,
+     "details": {
+      "reason": "RCA of investigation d2999e48-29e0-411a-827c-949541601df6: configuration in payment-service. A recent configuration change to payment-service caused the incident.",
+      "parameters": {
+       "key": "gateway_timeout_ms",
+       "service": "payment-service",
+       "to_value": 5000,
+       "from_value": 50
+      },
+      "proposal_hash": "sha256:e5ffffecce652015fb973adc7431aab58d263e3d8446fdd9940fdfb95a26b58c",
+      "expected_effect": "gateway_timeout_ms back to 5000; errors return below 5%",
+      "idempotency_key": "planner:d2999e48-29e0-411a-827c-949541601df6"
+     },
+     "occurred_at": "2026-09-26T17:48:47.658474+00:00"
+    },
+    {
+     "sequence": 2,
+     "event": "policy_evaluated",
+     "from_status": "PROPOSED",
+     "to_status": "PROPOSED",
+     "actor": "policy-engine",
+     "correlation_id": "1d5379c7-f9f9-4c81-9b08-56ec31d5d617",
+     "action_id": "revert_configuration",
+     "catalog_version": "catalog-2026.09-1",
+     "policy_version": "policy-2026.09-1",
+     "details": {
+      "reasons": [
+       "human approval required (service_owner)"
+      ],
+      "decision": "REQUIRE_APPROVAL",
+      "denying_rules": [],
+      "catalog_digest": "sha256:8b7b1528f7ac84e2a99c3135a2df052905ca188b306885c724c2c86723d1ab07",
+      "blast_radius_tier": 2,
+      "policy_decision_id": "a6bf0055-5130-421e-abc0-f490f8ab6bd7"
+     },
+     "occurred_at": "2026-09-26T17:48:47.662352+00:00"
+    },
+    {
+     "sequence": 3,
+     "event": "approval_requested",
+     "from_status": "PROPOSED",
+     "to_status": "AWAITING_APPROVAL",
+     "actor": "policy-engine",
+     "correlation_id": "1d5379c7-f9f9-4c81-9b08-56ec31d5d617",
+     "action_id": "revert_configuration",
+     "catalog_version": "catalog-2026.09-1",
+     "policy_version": "policy-2026.09-1",
+     "details": {
+      "required_approver_roles": [
+       "service_owner"
+      ]
+     },
+     "occurred_at": "2026-09-26T17:48:47.663939+00:00"
+    }
+   ],
+   "baseline": null
+  }
+ ],
+ "verifications": [],
+ "evidence": [
+  {
+   "id": "3f19cc38-05ad-42fa-a875-2da217d22e41",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "d2999e48-29e0-411a-827c-949541601df6",
+   "content_hash": "sha256:65d39ce3f9a87e377154452e8d7333b591e26b7e34da085d4f87f0279f2dacb3",
+   "collected_at": "2026-09-26T17:48:47.528213+00:00"
+  },
+  {
+   "id": "80e94893-de0e-4985-ad73-4a51741ff97f",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "d2999e48-29e0-411a-827c-949541601df6",
+   "content_hash": "sha256:102d363f3d5a573007d86f41e8b4d281f9424144f6d03fb37d654134abed06be",
+   "collected_at": "2026-09-26T17:48:47.536358+00:00"
+  },
+  {
+   "id": "acdb7184-cac8-432c-8721-6b9483ae792c",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "d2999e48-29e0-411a-827c-949541601df6",
+   "content_hash": "sha256:2d8c5aa695e662e1220106e6338f40324f1d2f744cb3c95d85dbb3271d84bcde",
+   "collected_at": "2026-09-26T17:48:47.545414+00:00"
+  },
+  {
+   "id": "0bccefae-7d4f-44f9-a1d9-0b1c76a27be8",
+   "evidence_type": "deployment",
+   "source_system": "deployment-registry",
+   "investigation_id": "d2999e48-29e0-411a-827c-949541601df6",
+   "content_hash": "sha256:1e3667b86ca8fe82c8eb03732b3e7e604c12d647ae4b6c92d99331e23516cc5d",
+   "collected_at": "2026-09-26T17:48:47.552241+00:00"
+  },
+  {
+   "id": "63f11953-7f4c-432c-87d5-6c82d222d48a",
+   "evidence_type": "configuration",
+   "source_system": "config-registry",
+   "investigation_id": "d2999e48-29e0-411a-827c-949541601df6",
+   "content_hash": "sha256:61a764599c5c51c5f0f4ac893db119832d00a89d418c91141f87207f7b321752",
+   "collected_at": "2026-09-26T17:48:47.558317+00:00"
+  },
+  {
+   "id": "c8623cf1-76df-4770-a11d-69db35d24b58",
+   "evidence_type": "log",
+   "source_system": "loki",
+   "investigation_id": "d2999e48-29e0-411a-827c-949541601df6",
+   "content_hash": "sha256:00979dbfd578962c53a86143d6da95458515222f31034a17873a42192e61c9dd",
+   "collected_at": "2026-09-26T17:48:47.566318+00:00"
+  },
+  {
+   "id": "50081703-954f-43f2-8bfb-15899dff6c58",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "d2999e48-29e0-411a-827c-949541601df6",
+   "content_hash": "sha256:980348637f5d845800b2789a634492c86250d8984f850b41938aeecebda5e847",
+   "collected_at": "2026-09-26T17:48:47.573673+00:00"
+  },
+  {
+   "id": "af6a2bbf-e2c3-4ff6-b0b1-3aced6faeffc",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "d2999e48-29e0-411a-827c-949541601df6",
+   "content_hash": "sha256:2cfbb748ecd6063bffb6c90a894aa7cc37aad862767336c93b01958921718f7d",
+   "collected_at": "2026-09-26T17:48:47.591177+00:00"
+  },
+  {
+   "id": "c52ee8ea-1909-48ac-ae7f-ebacd8d98581",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "d2999e48-29e0-411a-827c-949541601df6",
+   "content_hash": "sha256:86d43f3a65dfc6d45bb5aea4dfff05842df463af131d90310a6f9235355ae3ec",
+   "collected_at": "2026-09-26T17:48:47.598672+00:00"
+  },
+  {
+   "id": "bd1fe195-242f-4099-a7a2-bf865f30cdcb",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "d2999e48-29e0-411a-827c-949541601df6",
+   "content_hash": "sha256:84f12b04faee6018523727781ec78a0e1ed82364f406a29c651004327506b22b",
+   "collected_at": "2026-09-26T17:48:47.606157+00:00"
+  }
+ ],
+ "timeline": [
+  {
+   "at": "2026-09-26T17:48:47.484602+00:00",
+   "kind": "alert",
+   "title": "HighErrorRate fired on payment-service",
+   "ref": "bc917a2c-7c13-41c1-9e68-de4e501ce495"
+  },
+  {
+   "at": "2026-09-26T17:48:47.493841+00:00",
+   "kind": "state",
+   "title": "TRIAGING \u2192 INVESTIGATING",
+   "detail": "investigation_started"
+  },
+  {
+   "at": "2026-09-26T17:48:47.494911Z",
+   "kind": "investigation",
+   "title": "Investigation attempt 1 started",
+   "detail": "heuristic-investigator"
+  },
+  {
+   "at": "2026-09-26T17:48:47.532823Z",
+   "kind": "evidence",
+   "title": "get_service_health: payment-service is degraded at 2026-09-26T17:48:47.527221+00:00 (error_rate)",
+   "evidence_ids": [
+    "3f19cc38-05ad-42fa-a875-2da217d22e41"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.542137Z",
+   "kind": "evidence",
+   "title": "get_metric_window: error_rate for payment-service: current=38.00%, window avg=9.50% vs baseline avg=0.20% (up)",
+   "evidence_ids": [
+    "80e94893-de0e-4985-ad73-4a51741ff97f"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.549985Z",
+   "kind": "evidence",
+   "title": "get_metric_window: latency_p95 for payment-service: current=120.0ms, window avg=120.0ms vs baseline avg=120.0ms (flat)",
+   "evidence_ids": [
+    "acdb7184-cac8-432c-8721-6b9483ae792c"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.556211Z",
+   "kind": "evidence",
+   "title": "get_recent_deployments: payment-service running 1.0.0 (from None, deployed 2026-09-23T17:48:47.485440+00:00); 0 deployment(s) in window",
+   "evidence_ids": [
+    "0bccefae-7d4f-44f9-a1d9-0b1c76a27be8"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.562314Z",
+   "kind": "evidence",
+   "title": "get_config_changes: 1 config change(s) for payment-service in window; effective: {'gateway_timeout_ms': 50}",
+   "evidence_ids": [
+    "63f11953-7f4c-432c-87d5-6c82d222d48a"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.570636Z",
+   "kind": "evidence",
+   "title": "get_logs: 70 matching log lines for payment-service (70 ERROR/CRITICAL) in window; top: 'payment-gateway call timed out after 50ms' x70",
+   "evidence_ids": [
+    "c8623cf1-76df-4770-a11d-69db35d24b58"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.577742Z",
+   "kind": "evidence",
+   "title": "get_service_health: payment-gateway is healthy at 2026-09-26T17:48:47.572764+00:00 (no threshold violations)",
+   "evidence_ids": [
+    "50081703-954f-43f2-8bfb-15899dff6c58"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.595620Z",
+   "kind": "evidence",
+   "title": "get_metric_window: request_rate for payment-service: current=50 req/s, window avg=50 req/s vs baseline avg=50 req/s (flat)",
+   "evidence_ids": [
+    "af6a2bbf-e2c3-4ff6-b0b1-3aced6faeffc"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.603091Z",
+   "kind": "evidence",
+   "title": "get_metric_window: cpu_usage for payment-service: current=30.00%, window avg=30.00% vs baseline avg=30.00% (flat)",
+   "evidence_ids": [
+    "c52ee8ea-1909-48ac-ae7f-ebacd8d98581"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.610547Z",
+   "kind": "evidence",
+   "title": "get_metric_window: memory_usage for payment-service: current=120.0MB, window avg=120.0MB vs baseline avg=120.0MB (flat)",
+   "evidence_ids": [
+    "bd1fe195-242f-4099-a7a2-bf865f30cdcb"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:48:47.631669Z",
+   "kind": "hypothesis",
+   "title": "deploy_payment-s: new \u2192 WEAKENED"
+  },
+  {
+   "at": "2026-09-26T17:48:47.631669Z",
+   "kind": "hypothesis",
+   "title": "config_payment-s: new \u2192 SUPPORTED"
+  },
+  {
+   "at": "2026-09-26T17:48:47.631669Z",
+   "kind": "hypothesis",
+   "title": "dep_payment-gate: new \u2192 WEAKENED"
+  },
+  {
+   "at": "2026-09-26T17:48:47.631669Z",
+   "kind": "hypothesis",
+   "title": "resource_cpu: new \u2192 WEAKENED"
+  },
+  {
+   "at": "2026-09-26T17:48:47.631669Z",
+   "kind": "hypothesis",
+   "title": "resource_memory: new \u2192 WEAKENED"
+  },
+  {
+   "at": "2026-09-26T17:48:47.631669Z",
+   "kind": "hypothesis",
+   "title": "traffic: new \u2192 WEAKENED"
+  },
+  {
+   "at": "2026-09-26T17:48:47.645864Z",
+   "kind": "rca",
+   "title": "RCA: configuration in payment-service",
+   "ref": "29db13b5-604c-47e6-ab7e-cf028cee07bd"
+  },
+  {
+   "at": "2026-09-26T17:48:47.649262+00:00",
+   "kind": "state",
+   "title": "INVESTIGATING \u2192 RCA_READY",
+   "detail": "root_cause_selected"
+  },
+  {
+   "at": "2026-09-26T17:48:47.658474+00:00",
+   "kind": "remediation",
+   "title": "revert_configuration: proposed",
+   "detail": "planner:remediation-planner",
+   "ref": "d8fee458-1f87-47ab-bec9-233b185bf251"
+  },
+  {
+   "at": "2026-09-26T17:48:47.662352+00:00",
+   "kind": "remediation",
+   "title": "revert_configuration: policy evaluated",
+   "detail": "policy-engine",
+   "ref": "d8fee458-1f87-47ab-bec9-233b185bf251"
+  },
+  {
+   "at": "2026-09-26T17:48:47.663939+00:00",
+   "kind": "remediation",
+   "title": "revert_configuration: approval requested",
+   "detail": "policy-engine",
+   "ref": "d8fee458-1f87-47ab-bec9-233b185bf251"
+  },
+  {
+   "at": "2026-09-26T17:48:47.666099+00:00",
+   "kind": "state",
+   "title": "RCA_READY \u2192 AWAITING_APPROVAL",
+   "detail": "remediation_awaiting_approval"
+  }
+ ]
+}

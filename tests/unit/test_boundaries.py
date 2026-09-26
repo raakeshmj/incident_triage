@@ -133,3 +133,31 @@ def test_the_executor_has_no_shell_database_or_orchestrator_access():
         "packages.incident.db",
     )
     assert _violations("packages/remediation", forbidden) == []
+
+
+def test_verification_is_deterministic_and_never_executes():
+    """Phase 8: verdicts come from evidence, never from a model or an
+    executor; the rules are pure; the agent can't reach verification."""
+    assert (
+        _violations(
+            "packages/verification",
+            ("anthropic", "packages.agents", "packages.remediation.executor", "subprocess"),
+        )
+        == []
+    )
+    pure = _imports("packages/domain")["packages/domain/verification.py"]
+    assert not {
+        n for n in pure if n.startswith(("sqlalchemy", "redis", "httpx", "packages.incident"))
+    }
+    forbidden = ("packages.verification", "packages.incident.verifications")
+    assert _violations("packages/agents", forbidden) == []
+    assert _violations("packages/tools", forbidden) == []
+
+
+def test_read_api_is_read_only():
+    names = _imports("apps/api/routers")["apps/api/routers/operations.py"]
+    assert not {
+        n
+        for n in names
+        if n.startswith(("packages.remediation", "packages.verification", "packages.incident.db"))
+    }

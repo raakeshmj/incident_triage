@@ -1,6 +1,6 @@
 # Incident Intelligence — Design Documentation
 
-Status: **Phases 1-7 implemented** (see [implementation-order.md](implementation-order.md)).
+Status: **Phases 1-8 implemented** (Phase 8 was the final planned phase) (see [implementation-order.md](implementation-order.md)).
 
 ## Reading order
 
@@ -13,12 +13,16 @@ Status: **Phases 1-7 implemented** (see [implementation-order.md](implementation
 7. [architecture/07-agent-tool-architecture.md](architecture/07-agent-tool-architecture.md) — how Claude is used safely
 8. [architecture/08-evidence-model.md](architecture/08-evidence-model.md) — anti-hallucination design
 9. [architecture/09-remediation-policy-boundaries.md](architecture/09-remediation-policy-boundaries.md) — policy engine, action catalog, approvals
-10. [architecture/10-verification-design.md](architecture/10-verification-design.md) — did the fix work
+10. [architecture/10-verification-design.md](architecture/10-verification-design.md) — did the fix work (Phase 8: as built)
 11. [architecture/11-evaluation-architecture.md](architecture/11-evaluation-architecture.md) — offline eval / replay harness
 12. [architecture/12-local-development.md](architecture/12-local-development.md) — dev environment, fixtures
 13. [architecture/13-security-boundaries.md](architecture/13-security-boundaries.md) — trust zones, RBAC, secrets
 14. [architecture/14-observability-and-chaos.md](architecture/14-observability-and-chaos.md) — Phase 3's simulated services, telemetry, alerting, chaos scenarios
 15. [architecture/15-investigation-engine.md](architecture/15-investigation-engine.md) — Phase 5's bounded, resumable, evidence-grounded investigation loop
+
+Frontend (Phase 8): [frontend/design-workflow.md](frontend/design-workflow.md) — design tooling, the chosen visual direction (`apps/dashboard/DESIGN.md`) and the design workflow.
+
+Operations: [operations.md](operations.md) — running the whole loop locally (workers, heuristic investigator, demo data, dashboard).
 
 Decisions: [adr/](adr/) — one ADR per significant, hard-to-reverse choice.
 
@@ -67,3 +71,7 @@ convention:
    idempotency_key)`), every event carries a stable `event_id`, and every
    execution carries a unique `idempotency_key`; retries and redeliveries
    must be safe by construction.
+7. **Resolved means verified.** An incident reaches `RESOLVED` only through
+   a deterministic verification that passed on evidence-service
+   observations — never on executor success, remediation status or a
+   model's claim (ADR-0025).

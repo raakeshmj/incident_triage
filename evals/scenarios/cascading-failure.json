@@ -132,5 +132,10 @@
         "component": "checkout-service"
       }
     ]
+  },
+  "lifecycle": {
+    "expected_action": "rollback_deployment",
+    "expected_verification": "PASSED",
+    "expected_final_state": "RESOLVED"
   }
 }

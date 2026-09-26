@@ -1,0 +1,69 @@
+{
+ "evidence_id": "839d003d-d365-473f-bb37-70a5f03daf0a",
+ "incident_id": "6637710f-de1c-4f78-b56d-f64fb550ebe3",
+ "investigation_id": null,
+ "evidence_type": "metric",
+ "source_system": "prometheus",
+ "operation": "service_health",
+ "subject_service": "payment-service",
+ "observed_at": "2026-09-26T17:48:46.510173+00:00",
+ "window_start": "2026-09-26T17:47:46.510173+00:00",
+ "window_end": "2026-09-26T17:48:46.510173+00:00",
+ "collected_at": "2026-09-26T17:48:46.511540+00:00",
+ "requested_by": "verification:efd5b1a7-49bc-4012-b6d1-1d73cea5ca38",
+ "content_hash": "sha256:e7e46e5db98d0b3936fc90393060daf0790f5ee0b0aac44ff13c6c3b596bc8f9",
+ "summary": "payment-service is healthy at 2026-09-26T17:48:46.510173+00:00 (no threshold violations)",
+ "query_spec": {
+  "params": {
+   "service": "payment-service",
+   "environment": "staging"
+  },
+  "promql": {
+   "cpu_usage": "max(process_cpu_usage_ratio{service=\"payment-service\",environment=\"staging\"})",
+   "error_rate": "(sum(rate(http_requests_errors_total{service=\"payment-service\",environment=\"staging\"}[1m])) or sum(rate(http_requests_total{service=\"payment-service\",environment=\"staging\"}[1m])) * 0) / sum(rate(http_requests_total{service=\"payment-service\",environment=\"staging\"}[1m]))",
+   "latency_p95": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{service=\"payment-service\",environment=\"staging\"}[1m])))",
+   "availability": "max(up{service=\"payment-service\",environment=\"staging\"})",
+   "memory_usage": "max(process_memory_usage_bytes{service=\"payment-service\",environment=\"staging\"})",
+   "request_rate": "sum(rate(http_requests_total{service=\"payment-service\",environment=\"staging\"}[1m]))"
+  },
+  "template": "service_health"
+ },
+ "normalized_payload": {
+  "at": "2026-09-26T17:48:46.510173+00:00",
+  "status": "healthy",
+  "service": "payment-service",
+  "signals": {
+   "cpu_usage": {
+    "unit": "ratio",
+    "value": 0.3
+   },
+   "error_rate": {
+    "unit": "ratio",
+    "value": 0.002
+   },
+   "latency_p95": {
+    "unit": "s",
+    "value": 0.12
+   },
+   "availability": {
+    "unit": "bool",
+    "value": 1.0
+   },
+   "memory_usage": {
+    "unit": "bytes",
+    "value": 125829120.0
+   },
+   "request_rate": {
+    "unit": "req/s",
+    "value": 50.0
+   }
+  },
+  "thresholds": {
+   "cpu_usage": 0.85,
+   "error_rate": 0.1,
+   "latency_p95": 1.0,
+   "memory_usage": 209715200
+  },
+  "violations": []
+ }
+}

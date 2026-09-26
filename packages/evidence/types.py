@@ -29,6 +29,7 @@ class SourceSystem(str, Enum):
     CONFIG_REGISTRY = "config-registry"
     GIT = "git"
     INCIDENT_CORE = "incident-core"
+    RUNTIME_REGISTRY = "runtime-registry"
 
 
 # Time-sensitive observations get an `expires_at` (08-evidence-model.md,

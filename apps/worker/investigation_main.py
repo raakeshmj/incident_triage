@@ -44,11 +44,13 @@ from packages.evidence.scope import ServiceCatalog
 from packages.incident.db.base import make_engine, make_session_factory
 from packages.incident.investigations import InvestigationCoreService
 from packages.incident.service import IncidentCoreService
+from packages.telemetry.heartbeat import Heartbeat
 from packages.telemetry.logging import configure_logging, get_logger
 
 log = get_logger(__name__)
 
 CONSUMER_PURPOSE = "investigation-worker"
+HEURISTIC_PROVIDER = "heuristic"
 
 
 @dataclass
@@ -103,6 +105,17 @@ def build_runtime(
     sleep: Callable[[float], None] = time.sleep,
 ) -> InvestigationRuntime:
     settings = settings or InvestigationSettings()
+    if (
+        settings.investigation_model_provider == HEURISTIC_PROVIDER
+        and model_factory is build_investigation_model
+    ):
+        # Offline mode: the deterministic rule-based investigator from the
+        # evaluation harness -- not a model, no credential, no API call.
+        # Explicit opt-in (INVESTIGATION_PROVIDER=heuristic); see
+        # docs/operations.md.
+        from packages.evaluation.heuristic import HeuristicInvestigator
+
+        model_factory = lambda spec: HeuristicInvestigator()  # noqa: E731
     session_factory = make_session_factory(make_engine(database_url))
     core = IncidentCoreService(session_factory)
     investigations = InvestigationCoreService(session_factory, criteria=settings.criteria())
@@ -179,7 +192,11 @@ def run_forever(idle_sleep_seconds: float = 2.0) -> None:
         model=runtime.settings.investigation_model,
         debounce_seconds=runtime.settings.investigation_debounce_seconds,
     )
+    heartbeat = Heartbeat(
+        redis_lib.from_url(worker.redis_url, decode_responses=True), CONSUMER_PURPOSE
+    )
     while True:
+        heartbeat.beat(model=runtime.settings.investigation_model)
         runtime.schedule_due()
         handled = sum(consumer.run_once() for consumer in consumers)
         resumed = runtime.resume_stale()

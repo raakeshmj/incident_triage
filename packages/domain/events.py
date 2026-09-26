@@ -196,3 +196,38 @@ class KillSwitchChangedPayload(BaseModel):
     engaged: bool
     actor: str
     reason: str | None = None
+
+
+# --- Phase 8: verification + incident closure ----------------------------------------
+
+EVENT_TYPE_VERIFICATION_STARTED = "VerificationStarted"
+EVENT_TYPE_VERIFICATION_COMPLETED = "VerificationCompleted"
+EVENT_TYPE_INCIDENT_RESOLVED = "IncidentResolved"
+EVENT_TYPE_INCIDENT_ESCALATED = "IncidentEscalated"
+AGGREGATE_TYPE_VERIFICATION = "Verification"
+
+
+class VerificationEventPayload(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    verification_id: uuid.UUID
+    incident_id: uuid.UUID
+    remediation_id: uuid.UUID
+    status: str
+    policy_version: str
+    claim_attempt: int
+    result: str | None = None
+    reason: str | None = None
+    next_action: str | None = None  # resolve | reinvestigate | escalate | none
+
+
+class IncidentClosureEventPayload(BaseModel):
+    """IncidentResolved / IncidentEscalated: why the loop ended where it did."""
+
+    model_config = ConfigDict(frozen=True)
+
+    incident_id: uuid.UUID
+    status: str
+    reason: str
+    verification_id: uuid.UUID | None = None
+    remediation_id: uuid.UUID | None = None

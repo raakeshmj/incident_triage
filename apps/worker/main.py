@@ -56,6 +56,7 @@ from packages.incident import repository
 from packages.incident.db.base import make_engine, make_session_factory
 from packages.incident.db.models import OutboxEventRow
 from packages.telemetry.context import bind_context
+from packages.telemetry.heartbeat import Heartbeat
 from packages.telemetry.logging import configure_logging, get_logger
 from packages.telemetry.metrics import get_metrics
 
@@ -180,7 +181,9 @@ def run_forever(settings: WorkerSettings) -> None:
         stream_prefix=settings.outbox_stream_prefix,
         shard_count=settings.outbox_shard_count,
     )
+    heartbeat = Heartbeat(redis_client, "outbox-relay")
     while True:
+        heartbeat.beat()
         published = relay_once(
             session_factory,
             publisher,

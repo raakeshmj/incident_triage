@@ -23,6 +23,10 @@ from packages.evidence.types import EvidenceType, SourceSystem
 
 DEPLOYMENTS_KEY = "changes:deployments:{service}"
 CONFIG_KEY = "changes:config:{service}"
+# The simulated runtime's control-plane state (desired replicas, feature
+# flags), written by the remediation executor, read here for verification.
+REPLICAS_KEY = "sim:replicas:{service}"
+FLAGS_KEY = "sim:flags:{service}"
 # Bounded read: only the tail of each append-only list is ever scanned.
 MAX_RECORDS_SCANNED = 500
 
@@ -148,6 +152,46 @@ class ChangeRegistryAdapter:
             observed_at=_parse_ts(as_of_end[-1]["changed_at"]) if as_of_end else end,
             window_start=start,
             window_end=end,
+        )
+
+    def _runtime(self, service: str) -> tuple[int, dict[str, str]]:
+        try:
+            replicas = self._redis.get(REPLICAS_KEY.format(service=service))
+            flags = cast(dict[str, str], self._redis.hgetall(FLAGS_KEY.format(service=service)))
+        except redis.TimeoutError as exc:
+            raise BackendTimeoutError("runtime registry timed out") from exc
+        except redis.RedisError as exc:
+            raise BackendUnavailableError("runtime registry unreachable") from exc
+        return int(cast(str, replicas) or 1), dict(flags or {})
+
+    def runtime_state(self, *, service: str, environment: str, at: datetime) -> Observation:
+        """Desired replica count and feature-flag state of one service."""
+        replicas, flags = self._runtime(service)
+        normalized = {
+            "service": service,
+            "environment": environment,
+            "replicas": replicas,
+            "flags": dict(sorted(flags.items())),
+        }
+        return Observation(
+            evidence_type=EvidenceType.CONFIGURATION,
+            source_system=SourceSystem.RUNTIME_REGISTRY,
+            operation="runtime_state",
+            subject_service=service,
+            query_spec={"template": "runtime_state", "params": {"service": service}},
+            source_reference={
+                "registry": "redis",
+                "keys": [REPLICAS_KEY.format(service=service), FLAGS_KEY.format(service=service)],
+            },
+            raw_response={"replicas": replicas, "flags": flags},
+            raw_truncated=False,
+            normalized_payload=normalized,
+            summary=f"{service} runtime: {replicas} replica(s), "
+            f"flags {normalized['flags'] or 'none set'}",
+            result_count=1,
+            observed_at=at,
+            window_start=at,
+            window_end=at,
         )
 
 

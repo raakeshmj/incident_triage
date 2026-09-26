@@ -36,13 +36,16 @@ from typing import Any, Protocol
 
 import redis
 
-from packages.evidence.adapters.changes import CONFIG_KEY, DEPLOYMENTS_KEY
+from packages.evidence.adapters.changes import (
+    CONFIG_KEY,
+    DEPLOYMENTS_KEY,
+    FLAGS_KEY,
+    REPLICAS_KEY,
+)
 from packages.remediation.catalog import CATALOG_VERSION, get_entry
 
 APPLIED_KEY = "sim:remediation:applied:{key}"
 OPS_LOG_KEY = "sim:ops:{service}"
-REPLICAS_KEY = "sim:replicas:{service}"
-FLAGS_KEY = "sim:flags:{service}"
 MAX_REPLICAS = 10
 # Faults a process restart clears (they live in the service process).
 RESTART_CLEARS = frozenset({"memory-leak", "high-cpu"})

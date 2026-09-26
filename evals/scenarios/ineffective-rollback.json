@@ -1,0 +1,118 @@
+{
+  "id": "ineffective-rollback",
+  "title": "Rollback executes but checkout does not recover",
+  "kind": "positive",
+  "description": "Same bad rollout of checkout-service, but the fault is not in the build: after the approved rollback the error rate stays high. Verification must fail from evidence even though the executor reported success, and the incident must not resolve.",
+  "service": "checkout-service",
+  "initial_conditions": "checkout-service healthy on 4.1.3; the rollback will not fix the error condition.",
+  "observable_symptoms": [
+    "checkout 5xx rate rises from ~0.2% to ~32% two minutes after a deployment",
+    "ERROR logs: unhandled exception while serializing order"
+  ],
+  "alerts": [
+    {
+      "alertname": "HighErrorRate",
+      "alert_type": "availability",
+      "summary": "checkout-service 5xx ratio above 10%",
+      "description": "Share of checkout requests answered with 5xx exceeded 10% for 5 minutes."
+    }
+  ],
+  "world": {
+    "metrics": {
+      "checkout-service": {
+        "error_rate": {
+          "series": {
+            "change_at_min": -10,
+            "baseline": 0.002,
+            "incident": 0.32
+          }
+        }
+      }
+    },
+    "logs": {
+      "checkout-service": [
+        {
+          "at_min": -9,
+          "severity": "ERROR",
+          "message": "unhandled exception while serializing order: KeyError 'gift_wrap'",
+          "count": 60
+        },
+        {
+          "at_min": -20,
+          "severity": "INFO",
+          "message": "request completed",
+          "count": 20
+        }
+      ]
+    },
+    "deployments": [
+      {
+        "service": "checkout-service",
+        "at_min": -12,
+        "version": "4.2.0",
+        "previous_version": "4.1.3",
+        "commit_sha": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
+      }
+    ]
+  },
+  "expected": {
+    "outcome": "RCA_READY",
+    "root_cause": {
+      "categories": [
+        "deployment"
+      ],
+      "component": "checkout-service"
+    },
+    "required_evidence": [
+      {
+        "type": "deployment",
+        "service": "checkout-service"
+      },
+      {
+        "type": "metric",
+        "service": "checkout-service",
+        "operation": "metric_window:error_rate"
+      }
+    ],
+    "acceptable_evidence": [
+      {
+        "type": "deployment",
+        "service": "checkout-service"
+      },
+      {
+        "type": "metric",
+        "service": "checkout-service",
+        "operation": "metric_window:error_rate"
+      },
+      {
+        "type": "log",
+        "service": "checkout-service"
+      },
+      {
+        "type": "metric",
+        "service": "payment-service",
+        "operation": "service_health"
+      }
+    ],
+    "competing_hypotheses": [
+      {
+        "categories": [
+          "dependency"
+        ],
+        "component": "payment-service"
+      },
+      {
+        "categories": [
+          "traffic"
+        ],
+        "component": "checkout-service"
+      }
+    ]
+  },
+  "lifecycle": {
+    "expected_action": "rollback_deployment",
+    "remediation_effective": false,
+    "expected_verification": "FAILED",
+    "expected_final_state": "VERIFICATION_FAILED"
+  }
+}

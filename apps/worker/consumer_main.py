@@ -37,6 +37,7 @@ from packages.events.envelope import OutboxEventEnvelope
 from packages.events.streams import all_stream_names, consumer_group_name, consumer_identity
 from packages.incident import repository
 from packages.incident.db.base import make_engine, make_session_factory
+from packages.telemetry.heartbeat import Heartbeat
 from packages.telemetry.logging import configure_logging, get_logger
 from packages.telemetry.metrics import get_metrics
 
@@ -159,7 +160,11 @@ def run_forever(settings: WorkerSettings, idle_sleep_seconds: float = 1.0) -> No
         purpose=settings.consumer_purpose,
         shard_count=len(consumers),
     )
+    heartbeat = Heartbeat(
+        redis_lib.from_url(settings.redis_url, decode_responses=True), settings.consumer_purpose
+    )
     while True:
+        heartbeat.beat()
         handled = sum(consumer.run_once() for consumer in consumers)
         if handled == 0:
             time.sleep(idle_sleep_seconds)

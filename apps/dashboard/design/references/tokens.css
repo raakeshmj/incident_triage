@@ -1,0 +1,22 @@
+/* Reference-composition tokens, straight from apps/dashboard/DESIGN.md (IBM/Carbon). */
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap");
+:root{--primary:#0f62fe;--ink:#161616;--ink-muted:#525252;--ink-subtle:#8c8c8c;--canvas:#fff;--s1:#f4f4f4;--s2:#e0e0e0;--hair:#e0e0e0;--inv:#161616;--inv1:#262626;--inv-ink:#fff;--inv-muted:#c6c6c6;--err:#da1e28;--warn:#f1c21b;--ok:#24a148;--info:#0f62fe}
+*{box-sizing:border-box;margin:0;border-radius:0}
+body{font:400 14px/1.43 "IBM Plex Sans",system-ui,sans-serif;letter-spacing:.16px;color:var(--ink);background:var(--canvas)}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;letter-spacing:.32px}
+.shell{height:48px;background:var(--inv);color:var(--inv-ink);display:flex;align-items:center;gap:32px;padding:0 16px;font-size:14px}
+.shell b{font-weight:600}.shell a{color:var(--inv-muted);text-decoration:none;height:48px;display:flex;align-items:center;padding:0 12px}
+.shell a.on{color:#fff;box-shadow:inset 0 -2px 0 var(--primary)}
+main{padding:24px 32px;max-width:1584px}
+h1{font:400 28px/1.29 "IBM Plex Sans";letter-spacing:0}h2{font:600 14px/1.29 "IBM Plex Sans";letter-spacing:.16px;margin:0 0 8px}
+.muted{color:var(--ink-muted)}.subtle{color:var(--ink-subtle)}
+.tag{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;font-size:12px;background:var(--s2);color:var(--ink)}
+.dot{width:8px;height:8px;display:inline-block}
+.sev-critical .dot,.st-bad .dot{background:var(--err)}.sev-warning .dot,.st-warn .dot{background:var(--warn)}.st-ok .dot{background:var(--ok)}.st-info .dot{background:var(--info)}.st-idle .dot{background:var(--ink-subtle)}
+table{border-collapse:collapse;width:100%}th{text-align:left;font-weight:600;font-size:12px;color:var(--ink);background:var(--s2);height:32px;padding:0 12px}
+td{height:40px;padding:0 12px;border-bottom:1px solid var(--hair);font-size:14px}tr:hover td{background:var(--s1)}
+a{color:var(--primary)}
+.panel{border:1px solid var(--hair);background:var(--canvas)}.panel>header{padding:12px 16px;border-bottom:1px solid var(--hair);display:flex;justify-content:space-between;align-items:baseline}
+.panel>.body{padding:12px 16px}
+button{font:inherit;height:40px;padding:0 16px;border:0;cursor:pointer}
+.btn-primary{background:var(--primary);color:#fff}.btn-danger{background:var(--err);color:#fff}.btn-ghost{background:transparent;color:var(--primary)}

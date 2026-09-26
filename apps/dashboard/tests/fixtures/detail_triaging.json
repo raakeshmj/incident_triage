@@ -1,0 +1,42 @@
+{
+ "incident": {
+  "id": "1d6b2022-ff63-4ae9-9942-d6277bee5790",
+  "status": "TRIAGING",
+  "severity": "critical",
+  "service": "payment-service",
+  "environment": "staging-us",
+  "correlation_key": "db6c07efb3d2ebfb18b05498a035e1e238d5def1e2cf7e7be48ff5eac03f9e6a:1989383",
+  "attempt_count": 0,
+  "version": 0,
+  "created_at": "2026-09-26T17:48:47.689965+00:00",
+  "updated_at": "2026-09-26T17:48:47.689965+00:00",
+  "ended_at": null,
+  "duration_seconds": 50.2
+ },
+ "alerts": [
+  {
+   "id": "693f90ad-0b0e-4581-872e-c1068ed8c944",
+   "alertname": "HighErrorRate",
+   "service": "payment-service",
+   "severity": "critical",
+   "status": "firing",
+   "source": "prometheus",
+   "summary": "payment-service 5xx ratio above 10%",
+   "received_at": "2026-09-26T17:48:47.689965+00:00",
+   "resolved_at": null
+  }
+ ],
+ "transitions": [],
+ "investigations": [],
+ "remediations": [],
+ "verifications": [],
+ "evidence": [],
+ "timeline": [
+  {
+   "at": "2026-09-26T17:48:47.689965+00:00",
+   "kind": "alert",
+   "title": "HighErrorRate fired on payment-service",
+   "ref": "693f90ad-0b0e-4581-872e-c1068ed8c944"
+  }
+ ]
+}

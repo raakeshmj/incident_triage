@@ -192,6 +192,17 @@ class Expected(_Strict):
         return self
 
 
+class Lifecycle(_Strict):
+    """What should happen after the investigation (Phase 8 lifecycle
+    evaluation). A simulated human approves when `approve` is true."""
+
+    expected_action: str | None = None
+    approve: bool = True
+    remediation_effective: bool = True
+    expected_verification: Literal["PASSED", "FAILED", "TIMED_OUT"] | None = None
+    expected_final_state: str
+
+
 class Scenario(_Strict):
     id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{1,63}$")
     title: str
@@ -206,6 +217,7 @@ class Scenario(_Strict):
     world: World
     expected: Expected
     budget: dict[str, int] = Field(default_factory=dict)  # InvestigationBudget overrides
+    lifecycle: Lifecycle | None = None
     notes: str = ""
 
     @model_validator(mode="after")

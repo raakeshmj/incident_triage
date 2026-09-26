@@ -124,6 +124,11 @@ def test_live_bad_deployment_is_rolled_back_after_approval(
             )
             assert session.get(IncidentRow, incident.id).status == "VERIFYING"
         events = [t["event"] for t in remediation.remediations.timeline(remediation_id)]
-        assert events[-3:] == ["execution_started", "executed", "verification_requested"]
+        assert events[-4:] == [
+            "execution_started",
+            "baseline_captured",  # Phase 8: pre-remediation baseline, before the action
+            "executed",
+            "verification_requested",
+        ]
     finally:
         chaos.main(["stop", "--service", SERVICE])

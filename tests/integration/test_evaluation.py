@@ -81,7 +81,12 @@ def test_golden_scenario_passes_with_the_fake_investigator(env, scenario_id):
     g, scenario = result.grade, SCENARIOS[scenario_id]
     assert g.passed, g.failures
     assert result.errors == []  # includes the grading-key leak check
-    assert g.state["final_incident_status"] == scenario.expected.outcome
+    assert g.state["investigation_outcome_status"] == scenario.expected.outcome
+    # Phase 8: the rest of the loop, graded from recorded state
+    assert scenario.lifecycle is not None and g.lifecycle is not None
+    assert all(g.lifecycle["checks"].values()), g.lifecycle
+    assert not any(g.lifecycle["unsafe"].values())
+    assert g.state["final_incident_status"] == scenario.lifecycle.expected_final_state
     assert g.evidence["cited_ids_valid"] and not any(g.unsafe.values())
     if scenario.kind == "positive":
         assert g.root_cause["result"] == "correct"
@@ -110,8 +115,19 @@ def test_recording_is_complete_and_round_trips(env, tmp_path):
     assert rec.mode == {"model": "fake", "evidence": "fixture"}
     assert rec.prompt["version"] == "investigation-v2" and rec.prompt["system_prompt"]
     assert rec.prompt["stable_prefix_digest"] and rec.context["incident"]["service"]
-    assert rec.incident["alerts"] and rec.incident["final_status"] == "RCA_READY"
-    assert [t["to"] for t in rec.incident_transitions] == ["INVESTIGATING", "RCA_READY"]
+    assert rec.incident["alerts"] and rec.incident["final_status"] == "RESOLVED"
+    assert [t["to"] for t in rec.incident_transitions] == [
+        "INVESTIGATING",
+        "RCA_READY",
+        "AWAITING_APPROVAL",
+        "REMEDIATION_IN_PROGRESS",
+        "VERIFYING",
+        "RESOLVED",
+    ]
+    assert rec.lifecycle is not None and rec.lifecycle["final_incident_status"] == "RESOLVED"
+    verification = rec.lifecycle["verifications"][0]
+    assert verification["verification"]["status"] == "PASSED"
+    assert {link["role"] for link in verification["evidence"]} == {"baseline", "observation"}
     assert rec.tool_calls and all(t["arguments"] is not None for t in rec.tool_calls)
     shown = {e["evidence_id"] for e in rec.evidence if e["shown_to_investigation"]}
     assert {e for t in rec.tool_calls for e in t["evidence_ids"]} <= shown
@@ -185,7 +201,7 @@ class _StopsAtTheSymptom(HeuristicInvestigator):
 def test_an_incorrect_root_cause_is_graded_incorrect(env):
     result = _run(env, "cascading-failure", model=_StopsAtTheSymptom())
     g = result.grade
-    assert g.state["final_incident_status"] == "RCA_READY"  # it met the stopping criteria...
+    assert g.state["investigation_outcome_status"] == "RCA_READY"  # it met the criteria...
     assert g.root_cause["result"] == "incorrect"  # ...and is still wrong
     assert g.root_cause["component_match"] and not g.root_cause["category_match"]
     assert not g.passed
@@ -194,7 +210,7 @@ def test_an_incorrect_root_cause_is_graded_incorrect(env):
 def test_rca_ready_when_escalation_was_expected_is_unsafe(env, monkeypatch):
     monkeypatch.setattr(heuristic, "CHANGE_LEAD", heuristic.timedelta(hours=2))  # ignores timing
     g = _run(env, "deployment-without-causal-evidence").grade
-    assert g.state["final_incident_status"] == "RCA_READY"
+    assert g.state["investigation_outcome_status"] == "RCA_READY"
     assert g.unsafe["rca_when_escalation_expected"]
     assert g.root_cause["result"] == "incorrect" and not g.passed
 
@@ -213,7 +229,7 @@ def test_invented_evidence_ids_are_grounding_failures(env):
     g = _run(env, "bad-deployment", model=FakeInvestigationModel(script)).grade
     assert g.evidence["invalid_citation_attempts"] >= 1 and g.evidence["grounding_failure"]
     assert g.evidence["cited_ids_valid"]  # quarantined: nothing invalid was ever stored
-    assert g.state["final_incident_status"] != "RCA_READY" or g.evidence["cited_ids_valid"]
+    assert g.state["investigation_outcome_status"] != "RCA_READY" or g.evidence["cited_ids_valid"]
 
 
 def test_an_unsupported_conclusion_is_rejected_and_counted(env):
@@ -273,7 +289,7 @@ def test_an_unsupported_conclusion_is_rejected_and_counted(env):
         env, "bad-deployment", model=FakeInvestigationModel([premature, conclude_now, giving_up])
     ).grade
     assert g.state["invalid_conclusions_rejected"] == 1  # one hypothesis, no competitors
-    assert g.state["final_incident_status"] == "ESCALATED"
+    assert g.state["investigation_outcome_status"] == "ESCALATED"
     assert g.root_cause["result"] == "inconclusive" and not g.passed
 
 
@@ -421,3 +437,57 @@ def test_any_investigation_can_be_exported_from_the_main_database(env, tmp_path,
     assert exported.outcome["status"] == "COMPLETED" and exported.tool_calls
     assert cli.replay_main(["--trace", str(tmp_path / f"{investigation_id}.json")]) == 0
     assert "OUTCOME COMPLETED" in capsys.readouterr().out
+
+
+# --- Phase 8: lifecycle grading catches unsafe lifecycles -------------------------------
+
+
+def _mutated(recording, **changes):
+    data = copy.deepcopy(recording.model_dump(mode="json"))
+    for path, value in changes.items():
+        node = data
+        keys = path.split(".")
+        for key in keys[:-1]:
+            node = node[int(key)] if key.isdigit() else node[key]
+        node[keys[-1]] = value
+    return type(recording).model_validate(data)
+
+
+def test_lifecycle_grading_flags_resolution_without_verification(env):
+    rec = _run(env, "bad-deployment").recording
+    forged = _mutated(rec, **{"lifecycle.verifications": []})
+    g = grade(forged, SCENARIOS["bad-deployment"])
+    assert g.lifecycle["unsafe"]["resolved_without_passed_verification"]  # type: ignore[index]
+    assert not g.passed
+
+
+def test_lifecycle_grading_flags_execution_before_approval_and_duplicates(env):
+    rec = _run(env, "bad-deployment").recording
+    timeline = rec.lifecycle["remediations"][0]["timeline"]  # type: ignore[index]
+    reordered = [t for t in timeline if t["event"] != "approved"]
+    forged = _mutated(
+        rec,
+        **{
+            "lifecycle.remediations.0.timeline": reordered,
+            "lifecycle.executor_side_effects": 2,
+        },
+    )
+    g = grade(forged, SCENARIOS["bad-deployment"])
+    assert g.lifecycle["unsafe"]["execution_without_approval"]  # type: ignore[index]
+    assert g.lifecycle["unsafe"]["duplicate_side_effects"]  # type: ignore[index]
+
+
+def test_an_ineffective_remediation_fails_verification_and_does_not_resolve(env):
+    result = _run(env, "ineffective-rollback")
+    assert result.grade.passed, result.grade.failures
+    lc = result.grade.lifecycle
+    assert lc["executions_succeeded"] == 1 and lc["verification"] == "FAILED"  # type: ignore[index]
+    assert lc["final_state"] == "VERIFICATION_FAILED"  # type: ignore[index]
+    verification = result.recording.lifecycle["verifications"][0]["verification"]  # type: ignore[index]
+    assert verification["next_action"] == "reinvestigate"
+
+
+def test_lifecycle_recordings_replay_deterministically(env):
+    recording = _run(env, "bad-deployment").recording
+    report = _replay(env, recording)
+    assert report.deterministic, (report.differences, report.error)

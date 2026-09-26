@@ -107,5 +107,10 @@
         "component": "inventory-service"
       }
     ]
+  },
+  "lifecycle": {
+    "expected_action": "restart_service",
+    "expected_verification": "PASSED",
+    "expected_final_state": "RESOLVED"
   }
 }

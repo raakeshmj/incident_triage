@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     # "alice=service_owner|on_call_engineer,bob=on_call_engineer"
     remediation_approvers: str = ""
     evidence_service_catalog_path: str = "infrastructure/evidence/service-catalog.json"
+    # Phase 8 read model: the evidence store (evidence detail links) and Redis
+    # (dead-letter stream length, worker heartbeats) for the operations console.
+    evidence_database_url: str | None = None
+    redis_url: str = "redis://localhost:6379/0"
+    outbox_stream_prefix: str = "stream:events"
 
     def approver_roles(self) -> dict[str, list[str]]:
         roster: dict[str, list[str]] = {}

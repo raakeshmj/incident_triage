@@ -113,7 +113,9 @@ class InvestigationCoreService:
         model_settings: dict[str, Any],
         budget: InvestigationBudget,
     ) -> StartedInvestigation:
-        """TRIAGING -> INVESTIGATING and create the Investigation, atomically.
+        """TRIAGING (or VERIFICATION_FAILED: re-investigation after a failed
+        verification, Phase 8) -> INVESTIGATING and create the Investigation,
+        atomically.
 
         Idempotent: if the incident is already INVESTIGATING with an open
         investigation, that one is returned (`created=False`). The state
@@ -137,10 +139,15 @@ class InvestigationCoreService:
                 return StartedInvestigation(
                     investigation_id=existing.id, incident_id=incident_id, created=False
                 )
-            if incident.status != IncidentStatus.TRIAGING.value:
+            if incident.status not in (
+                IncidentStatus.TRIAGING.value,
+                IncidentStatus.VERIFICATION_FAILED.value,
+            ):
                 raise InvalidIncidentTransitionError(
-                    f"incident {incident_id} is {incident.status}, not TRIAGING"
+                    f"incident {incident_id} is {incident.status}, not TRIAGING or "
+                    "VERIFICATION_FAILED"
                 )
+            from_status = incident.status
             if repository.count_firing_alerts(session, incident_id) == 0:
                 raise InvalidIncidentTransitionError(
                     f"incident {incident_id} has no firing alert; nothing to investigate"
@@ -179,7 +186,14 @@ class InvestigationCoreService:
             )
             session.add(investigation)
             session.flush()
-            self._status_event(session, incident, "TRIAGING", "investigation_started")
+            self._status_event(
+                session,
+                incident,
+                from_status,
+                "investigation_started"
+                if from_status == IncidentStatus.TRIAGING.value
+                else "reinvestigation_after_failed_verification",
+            )
             repository.insert_outbox_event(
                 session,
                 event_type=EVENT_TYPE_INVESTIGATION_STARTED,
@@ -209,15 +223,17 @@ class InvestigationCoreService:
             )
 
     def due_for_investigation(self, *, debounce_seconds: int, limit: int = 10) -> list[uuid.UUID]:
-        """TRIAGING incidents whose debounce window has elapsed and that
-        still have a firing alert (04-incident-state-machine.md)."""
+        """TRIAGING incidents whose debounce window has elapsed, and
+        VERIFICATION_FAILED incidents the verification left for
+        re-investigation -- each with a firing alert (04-incident-state-machine.md)."""
         cutoff = self._clock() - timedelta(seconds=debounce_seconds)
         with self._session_factory() as session:
             result = session.execute(
                 text(
                     """
                     SELECT i.id FROM incident_core.incidents i
-                    WHERE i.status = 'TRIAGING' AND i.created_at <= :cutoff
+                    WHERE ((i.status = 'TRIAGING' AND i.created_at <= :cutoff)
+                           OR i.status = 'VERIFICATION_FAILED')
                       AND EXISTS (SELECT 1 FROM incident_core.alerts a
                                   WHERE a.incident_id = i.id AND a.status = 'firing')
                     ORDER BY i.created_at LIMIT :limit

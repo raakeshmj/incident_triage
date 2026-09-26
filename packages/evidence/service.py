@@ -361,6 +361,23 @@ class EvidenceService:
 
         return self._run(incident_id, "recent_commits", requested_by, investigation_id, collect)
 
+    def get_runtime_state(
+        self,
+        incident_id: uuid.UUID,
+        *,
+        service: str | None = None,
+        requested_by: str = "api",
+        investigation_id: uuid.UUID | None = None,
+    ) -> EvidenceItem:
+        """Replica count and feature flags (Phase 8 verification)."""
+
+        def collect(scope: IncidentScope, now: datetime) -> Observation:
+            return self._changes.runtime_state(
+                service=scope.service_or_default(service), environment=scope.environment, at=now
+            )
+
+        return self._run(incident_id, "runtime_state", requested_by, investigation_id, collect)
+
     # --- history -------------------------------------------------------
 
     def search_similar_incidents(

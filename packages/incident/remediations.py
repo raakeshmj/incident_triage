@@ -72,6 +72,7 @@ from packages.domain.remediation import (
     can_transition,
     proposal_hash,
 )
+from packages.domain.verification import VerificationPolicy, build_spec
 from packages.incident import repository
 from packages.incident.db.models import (
     IncidentRow,
@@ -79,10 +80,13 @@ from packages.incident.db.models import (
     KillSwitchRow,
     RcaReportRow,
     RemediationApprovalRow,
+    RemediationBaselineRow,
     RemediationExecutionRow,
     RemediationPolicyDecisionRow,
     RemediationRow,
     RemediationTimelineRow,
+    VerificationEvidenceRow,
+    VerificationRow,
 )
 from packages.policy.engine import DEFAULT_POLICY, Policy, evaluate
 from packages.remediation.catalog import (
@@ -140,12 +144,14 @@ class RemediationCoreService:
         topology: ServiceTopology,
         policy: Policy = DEFAULT_POLICY,
         approval_timeout: timedelta = timedelta(minutes=30),
+        verification_time_scale: float = 1.0,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._session_factory = session_factory
         self._topology = topology
         self._policy = policy
         self._approval_timeout = approval_timeout
+        self._verification_time_scale = verification_time_scale
         self._clock = clock
 
     @property
@@ -860,6 +866,54 @@ class RemediationCoreService:
             )
             return self._view(session, row)
 
+    def record_baseline(
+        self,
+        remediation_id: uuid.UUID,
+        *,
+        owner: str,
+        values: dict[str, Any],
+        evidence_ids: list[uuid.UUID],
+    ) -> None:
+        """The pre-remediation state verification will compare against,
+        captured once (before the first attempt acts) and immutable."""
+        with self._session_factory() as session:
+            row = self._lock(session, remediation_id)
+            if row.lease_owner != owner or row.status != RemediationStatus.EXECUTING.value:
+                raise LeaseLostError(f"{owner} does not hold remediation {remediation_id}")
+            if session.get(RemediationBaselineRow, remediation_id) is not None:
+                return
+            session.add(
+                RemediationBaselineRow(
+                    remediation_id=remediation_id,
+                    status="captured",
+                    values=values,
+                    evidence_ids=[str(e) for e in evidence_ids],
+                    captured_at=self._clock(),
+                )
+            )
+            self._timeline(
+                session,
+                row,
+                "baseline_captured",
+                RemediationStatus.EXECUTING,
+                RemediationStatus.EXECUTING,
+                f"worker:{owner}",
+                details={"values": values, "evidence_ids": [str(e) for e in evidence_ids]},
+            )
+            session.commit()
+
+    def baseline(self, remediation_id: uuid.UUID) -> dict[str, Any] | None:
+        with self._session_factory() as session:
+            row = session.get(RemediationBaselineRow, remediation_id)
+            if row is None:
+                return None
+            return {
+                "status": row.status,
+                "values": row.values,
+                "evidence_ids": row.evidence_ids,
+                "captured_at": row.captured_at.isoformat(),
+            }
+
     def pending_executions(self) -> list[uuid.UUID]:
         """APPROVED, or EXECUTING with an expired lease: what a runner should
         pick up (at-least-once delivery backstop + crash recovery)."""
@@ -885,9 +939,60 @@ class RemediationCoreService:
     def _request_verification(
         self, session: Session, row: RemediationRow, entry: ActionCatalogEntry | None
     ) -> None:
+        """Create the verification in the same transaction that records the
+        execution: there is no window in which a remediation is EXECUTED
+        without its verification existing (no completion/start race)."""
         verification_id = uuid.uuid4()
         row.verification_ref = verification_id
-        requirements = [v.__dict__ for v in (entry.verification if entry else ())]
+        baseline = session.get(RemediationBaselineRow, row.id)
+        baseline_doc = (
+            {
+                **baseline.values,
+                "evidence_ids": baseline.evidence_ids,
+                "captured_at": baseline.captured_at.isoformat(),
+            }
+            if baseline is not None
+            else None
+        )
+        spec = build_spec(
+            entry.verification if entry else VerificationPolicy(0, 0, 1, 1, False),
+            action_id=row.action_id,
+            parameters=dict(row.parameters),
+            baseline=baseline_doc,
+            time_scale=self._verification_time_scale,
+        )
+        now = self._clock()
+        session.add(
+            VerificationRow(
+                id=verification_id,
+                incident_id=row.incident_id,
+                remediation_id=row.id,
+                verification_type=row.action_id,
+                policy_version=spec.policy_version,
+                spec=spec.model_dump(mode="json"),
+                baseline=baseline_doc,
+                status="PENDING",
+                consecutive_successes=0,
+                observation_count=0,
+                conclusive_count=0,
+                correlation_id=row.correlation_id,
+                claim_attempt=0,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        session.flush()
+        for evidence_id in baseline.evidence_ids if baseline else []:
+            session.add(
+                VerificationEvidenceRow(
+                    verification_id=verification_id,
+                    evidence_id=uuid.UUID(evidence_id),
+                    poll_sequence=0,
+                    role="baseline",
+                    collected_at=baseline.captured_at if baseline else now,
+                )
+            )
+        requirements = [spec.model_dump(mode="json")]
         self._timeline(
             session,
             row,

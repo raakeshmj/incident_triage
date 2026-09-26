@@ -66,5 +66,10 @@
         "operation": "metric_window:error_rate"
       }
     ]
+  },
+  "lifecycle": {
+    "expected_action": null,
+    "expected_verification": null,
+    "expected_final_state": "ESCALATED"
   }
 }

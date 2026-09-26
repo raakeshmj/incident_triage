@@ -36,6 +36,11 @@ from packages.incident.db.models import (
 )
 
 _CLOSED_STATUS_VALUES = tuple(status.value for status in CLOSED_INCIDENT_STATUSES)
+# Must match the `incidents_open_correlation_key` partial index predicate
+# (migration 0007) for ON CONFLICT to infer it.
+_OPEN_INCIDENT_PREDICATE = (
+    "status NOT IN (" + ", ".join(f"'{v}'" for v in _CLOSED_STATUS_VALUES) + ")"
+)
 
 
 # --- processed_commands -----------------------------------------------------
@@ -239,7 +244,7 @@ def get_or_create_open_incident(
         )
         .on_conflict_do_nothing(
             index_elements=["correlation_key"],
-            index_where=text("status NOT IN ('CLOSED', 'CANCELLED', 'SUPPRESSED')"),
+            index_where=text(_OPEN_INCIDENT_PREDICATE),
         )
         .returning(IncidentRow)
     )

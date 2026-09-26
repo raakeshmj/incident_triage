@@ -36,8 +36,10 @@ from packages.domain.enums import AlertSeverity, AlertSource, AlertStatus
 from packages.domain.investigation import InvestigationBudget, StepKind, StoppingCriteria
 from packages.evaluation.grading import Grade, aggregate, grade
 from packages.evaluation.heuristic import HeuristicInvestigator
+from packages.evaluation.lifecycle import run_lifecycle
 from packages.evaluation.recording import (
     TRACE_DIR,
+    EvidenceStoreReader,
     InvestigationRecording,
     build_recording,
     save_recording,
@@ -54,7 +56,9 @@ from packages.incident.db.base import Base as IncidentBase
 from packages.incident.db.base import make_engine as make_incident_engine
 from packages.incident.db.base import make_session_factory as make_incident_sessions
 from packages.incident.investigations import InvestigationCoreService
+from packages.incident.remediations import RemediationCoreService
 from packages.incident.service import IncidentCoreService
+from packages.incident.verifications import VerificationCoreService
 
 RESULTS_DIR = Path("eval-results")
 Mode = Literal["fake", "live"]
@@ -155,6 +159,7 @@ class RunResult:
             },
             "latency_ms": {"wall": g.process["wall_ms"], "model": g.process["model_latency_ms"]},
             "final_state": g.state["final_incident_status"],
+            "lifecycle": g.lifecycle,
             "errors": self.errors,
             "recording": str(self.recording_path) if self.recording_path else None,
             "grade": g.model_dump(mode="json"),
@@ -213,6 +218,8 @@ def run_scenario(
     results_dir: Path | None = RESULTS_DIR,
     retry: RetryPolicy | None = None,
     sleep: Callable[[float], None] = time.sleep,
+    lifecycle: bool = True,
+    verification_time_scale: float = 0.004,
 ) -> RunResult:
     run_id = run_id or f"{scenario.id}-{mode}-{uuid.uuid4().hex[:8]}"
     criteria = criteria or StoppingCriteria()
@@ -248,6 +255,29 @@ def run_scenario(
         engine.run(started.investigation_id)
     except Exception as exc:  # the run is still recorded and graded
         errors.append(f"{type(exc).__name__}: {str(exc)[:300]}")
+    remediations = RemediationCoreService(
+        env.incident_sessions,
+        topology=env.catalog,
+        verification_time_scale=verification_time_scale,
+    )
+    verifications = VerificationCoreService(env.incident_sessions)
+    lifecycle_extra: dict[str, Any] = {}
+    if lifecycle and scenario.lifecycle is not None and not errors:
+        try:
+            lifecycle_extra = run_lifecycle(
+                scenario,
+                world=world,
+                evidence=evidence,
+                evidence_reader=EvidenceStoreReader(env.evidence_sessions),
+                investigations=investigations,
+                remediations=remediations,
+                verifications=verifications,
+                investigation_id=started.investigation_id,
+                owner=f"eval:{run_id}",
+                sleep=sleep,
+            )
+        except Exception as exc:  # recorded and graded, never hidden
+            errors.append(f"lifecycle {type(exc).__name__}: {str(exc)[:300]}")
     wall_ms = int((time.monotonic() - t0) * 1000)
     recording = build_recording(
         started.investigation_id,
@@ -259,6 +289,9 @@ def run_scenario(
         scenario_id=scenario.id,
         run_id=run_id,
         wall_ms=wall_ms,
+        remediations=remediations if lifecycle and scenario.lifecycle else None,
+        verifications=verifications if lifecycle and scenario.lifecycle else None,
+        lifecycle_extra=lifecycle_extra,
     )
     leaked = leaked_expectations(scenario, _model_inputs(recording))
     if leaked:

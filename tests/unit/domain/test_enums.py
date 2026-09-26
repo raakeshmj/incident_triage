@@ -12,4 +12,5 @@ def test_closed_incident_statuses_matches_database_partial_index():
         IncidentStatus.CLOSED,
         IncidentStatus.CANCELLED,
         IncidentStatus.SUPPRESSED,
+        IncidentStatus.RESOLVED,  # migration 0007
     }

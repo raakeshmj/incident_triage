@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reference: incident detail</title><link rel="stylesheet" href="tokens.css">
+<style>
+.head{display:grid;grid-template-columns:1fr auto;gap:8px 24px;padding-bottom:16px;border-bottom:1px solid var(--hair)}
+.facts{display:flex;gap:24px;flex-wrap:wrap;color:var(--ink-muted);font-size:13px}.facts b{color:var(--ink);font-weight:400}
+.grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:16px;margin-top:16px}
+.col{display:flex;flex-direction:column;gap:16px}
+.tl{list-style:none;padding:0}.tl li{display:grid;grid-template-columns:72px 12px 1fr;gap:8px;padding:6px 0;align-items:start}
+.tl .t{color:var(--ink-muted)}.tl .bar{width:2px;background:var(--hair);justify-self:center;height:100%}.tl li.k-rca .bar,.tl li.k-ver .bar{background:var(--primary)}
+.tl li.k-bad .bar{background:var(--err)}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 16px;font-size:13px}.kv dt{color:var(--ink-muted)}
+.hyp{display:grid;grid-template-columns:auto 1fr auto;gap:8px 12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--hair)}
+.meter{width:64px;height:4px;background:var(--s2)}.meter i{display:block;height:4px;background:var(--ink)}
+.obs{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--hair)}.obs div{padding:8px;border-right:1px solid var(--hair)}.obs div:last-child{border:0}
+.obs .v{font:400 20px/1.2 "IBM Plex Sans"}.delta{color:var(--ok);font-size:12px}
+</style></head><body>
+<div class="shell"><b>Incident Intelligence</b><a class="on" href="#">Incidents</a><a href="#">Operations</a></div>
+<main>
+<p class="mono subtle">Incidents / 0d6521b4</p>
+<div class="head">
+  <h1>checkout-service <span class="subtle">· production</span></h1>
+  <span class="tag st-ok"><span class="dot"></span>RESOLVED</span>
+  <div class="facts"><span class="tag sev-critical"><span class="dot"></span>critical</span><span>Opened <b>17:48:44Z</b></span><span>Duration <b>1m 12s</b></span><span>Attempts <b>1</b></span><span class="mono">0d6521b4-d767-4677-b139-51ba898c23bd</span></div>
+</div>
+<div class="grid">
+ <div class="col">
+  <section class="panel"><header><h2>Timeline</h2><span class="muted">23 events</span></header><div class="body"><ol class="tl">
+   <li><span class="t mono">17:48:44</span><span class="bar"></span><span>HighErrorRate fired on checkout-service</span></li>
+   <li><span class="t mono">17:48:44</span><span class="bar"></span><span>TRIAGING → INVESTIGATING</span></li>
+   <li><span class="t mono">17:48:44</span><span class="bar"></span><span>get_recent_deployments: running 4.2.0 (from 4.1.3) <a class="mono" href="#">3f95d298</a></span></li>
+   <li class="k-rca"><span class="t mono">17:48:45</span><span class="bar"></span><span><b>RCA</b>: deployment in checkout-service</span></li>
+   <li><span class="t mono">17:48:45</span><span class="bar"></span><span>Policy: REQUIRE_APPROVAL (service_owner)</span></li>
+   <li><span class="t mono">17:48:45</span><span class="bar"></span><span>Approved by eval-approver</span></li>
+   <li><span class="t mono">17:48:45</span><span class="bar"></span><span>rollback_deployment executed</span></li>
+   <li class="k-ver"><span class="t mono">17:48:46</span><span class="bar"></span><span><b>Verification PASSED</b> (3/3 observations)</span></li>
+   <li><span class="t mono">17:48:46</span><span class="bar"></span><span>VERIFYING → RESOLVED</span></li>
+  </ol></div></section>
+  <section class="panel"><header><h2>Impact</h2></header><div class="body"><dl class="kv"><dt>Affected services</dt><dd>checkout-service</dd><dt>Alerts</dt><dd>1 · HighErrorRate (firing)</dd></dl></div></section>
+ </div>
+ <div class="col">
+  <section class="panel"><header><h2>Root cause</h2><span class="tag st-info"><span class="dot"></span>confidence 0.80</span></header><div class="body">
+   <p>A recent deployment change to checkout-service caused the incident.</p>
+   <dl class="kv" style="margin-top:12px"><dt>Supporting</dt><dd><a class="mono" href="#">2e0b36df</a> log · <a class="mono" href="#">3f95d298</a> deployment · <a class="mono" href="#">9a66e5ba</a> metric</dd><dt>Contradicting</dt><dd class="muted">none</dd></dl></div></section>
+  <section class="panel"><header><h2>Hypotheses</h2><span class="muted">8 considered</span></header><div class="body">
+   <div class="hyp"><span class="tag st-ok"><span class="dot"></span>SELECTED</span><span>deployment · checkout-service</span><span class="meter"><i style="width:80%"></i></span></div>
+   <div class="hyp"><span class="tag st-idle"><span class="dot"></span>WEAKENED</span><span>dependency · payment-service</span><span class="meter"><i style="width:10%"></i></span></div>
+   <div class="hyp"><span class="tag st-idle"><span class="dot"></span>WEAKENED</span><span>traffic · checkout-service</span><span class="meter"><i style="width:10%"></i></span></div></div></section>
+  <section class="panel"><header><h2>Remediation</h2><span class="tag st-ok"><span class="dot"></span>EXECUTED</span></header><div class="body"><dl class="kv">
+   <dt>Action</dt><dd class="mono">rollback_deployment 4.2.0 → 4.1.3</dd><dt>Risk</dt><dd>blast radius 2</dd><dt>Policy</dt><dd>REQUIRE_APPROVAL · policy-2026.09-1</dd><dt>Approval</dt><dd>approved · eval-approver (service_owner)</dd><dt>Proposal hash</dt><dd class="mono">sha256:5e1c…a02f</dd></dl></div></section>
+  <section class="panel"><header><h2>Verification</h2><span class="tag st-ok"><span class="dot"></span>PASSED</span></header><div class="body">
+   <div class="obs"><div><span class="muted">Error rate</span><div class="v">0.20%</div><span class="delta">from 32.0% baseline</span></div><div><span class="muted">p95 latency</span><div class="v">120ms</div></div><div><span class="muted">Version</span><div class="v mono">4.1.3</div></div><div><span class="muted">Streak</span><div class="v">3/3</div></div></div>
+  </div></section>
+ </div>
+</div></main></body></html>

@@ -210,3 +210,26 @@ RESOLVED / VERIFICATION_FAILED) is a later phase; incidents wait in
 VERIFYING. Remediation state lives on the `remediations` aggregate; the
 incident moves only along these edges, and only if it is still where the
 remediation expects it (a human's ESCALATED is never overwritten).
+
+## Phase 8: the closed loop is live
+
+| From | To | Trigger |
+|---|---|---|
+| REMEDIATION_IN_PROGRESS | VERIFYING | execution succeeded; the verification row is created PENDING in the same transaction |
+| VERIFYING | RESOLVED | verification PASSED (N consecutive conclusive passing observations) |
+| VERIFYING | VERIFICATION_FAILED | verification FAILED |
+| VERIFICATION_FAILED | INVESTIGATING | the investigation scheduler, when attempts remain (`attempt_count < MAX_INVESTIGATION_ATTEMPTS`) and an alert is still firing |
+| VERIFICATION_FAILED | ESCALATED | attempts exhausted, or nothing still firing to re-investigate (same transaction as the verdict) |
+| VERIFYING | ESCALATED | verification TIMED_OUT (evidence never conclusive) |
+| TRIAGING | CANCELLED | unchanged: natural recovery before investigation — never RESOLVED |
+
+- **RESOLVED means verified.** It is reachable only from VERIFYING through
+  a PASSED verification. Executor success, remediation status or a model's
+  claim never resolve an incident.
+- **CANCELLED is unchanged** (alerts cleared on their own while TRIAGING).
+- **RESOLVED is a closed status** (`CLOSED_INCIDENT_STATUSES`): it no longer
+  holds its correlation key, so a recurrence opens a new incident
+  (ADR-0025). Migration 0007 rebuilt the partial unique index accordingly.
+- **No automatic second remediation.** A failed verification leads, at
+  most, to a new investigation; any new proposal needs policy + approval.
+- `CLOSED` and `SUPPRESSED` remain unimplemented design states.

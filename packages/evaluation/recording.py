@@ -66,6 +66,10 @@ class EvidenceStoreReader:
         with self._session_factory() as session:
             return repository.list_incident_records(session, incident_id)
 
+    def get_record(self, evidence_id: uuid.UUID) -> EvidenceRecord | None:
+        with self._session_factory() as session:
+            return repository.get_record(session, evidence_id)
+
 
 ModelMode = Literal["live", "fake", "replay"]
 EvidenceMode = Literal["live", "fixture", "replay"]
@@ -100,6 +104,10 @@ class InvestigationRecording(BaseModel):
     rca: dict[str, Any] | None
     outcome: dict[str, Any]
     totals: dict[str, Any]
+    # Phase 8: what happened after the investigation -- remediation proposals
+    # with policy decisions, approvals, executions and timelines; verifications
+    # with baselines, observations and evidence links; the final state.
+    lifecycle: dict[str, Any] | None = None
     redactions: int = 0
 
     @property
@@ -122,6 +130,9 @@ def build_recording(
     run_id: str | None = None,
     wall_ms: int | None = None,
     extra_secrets: list[str] | None = None,
+    remediations: Any = None,
+    verifications: Any = None,
+    lifecycle_extra: dict[str, Any] | None = None,
 ) -> InvestigationRecording:
     state = investigations.load_state(investigation_id)
     trace = investigations.get_trace(investigation_id)
@@ -241,7 +252,46 @@ def build_recording(
             "wall_ms": wall_ms if wall_ms is not None else _wall_ms(inv),
         },
     )
+    if remediations is not None and verifications is not None:
+        recording = recording.model_copy(
+            update={
+                "lifecycle": _lifecycle(
+                    incident_id, remediations, verifications, recording, lifecycle_extra or {}
+                )
+            }
+        )
     return scrub_secrets(recording, extra_secrets)
+
+
+def _lifecycle(
+    incident_id: uuid.UUID,
+    remediations: Any,
+    verifications: Any,
+    recording: InvestigationRecording,
+    extra: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "remediations": [
+            {
+                "remediation": r.model_dump(mode="json"),
+                "policy_decisions": remediations.policy_decisions(r.id),
+                "executions": remediations.executions(r.id),
+                "timeline": remediations.timeline(r.id),
+                "baseline": remediations.baseline(r.id),
+            }
+            for r in remediations.list_for_incident(incident_id)
+        ],
+        "verifications": [
+            {
+                "verification": v.model_dump(mode="json"),
+                "observations": verifications.observations(v.id),
+                "evidence": verifications.evidence_links(v.id),
+            }
+            for v in verifications.for_incident(incident_id)
+        ],
+        "final_incident_status": recording.incident["final_status"],
+        **extra,
+    }
 
 
 def _model_turn(step: dict[str, Any]) -> dict[str, Any]:

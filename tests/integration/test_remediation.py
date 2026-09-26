@@ -190,7 +190,11 @@ def test_planned_rollback_is_approved_executed_and_audited(env):
     }
     assert all(t["policy_version"] == DEFAULT_POLICY.version for t in timeline[1:])
     verification = env.events("VerificationRequested")
-    assert len(verification) == 1 and verification[0]["requirements"][0]["metric"] == "error_rate"
+    assert len(verification) == 1
+    spec = verification[0]["requirements"][0]
+    kinds = [c["kind"] for c in spec["checks"]]
+    assert kinds[0] == "state.deployment_version" and spec["checks"][0]["expected"] == "1.0.0"
+    assert {"health.status", "metric.max", "alerts.no_new_firing"} <= set(kinds)
     for event in (
         "RemediationProposed",
         "RemediationApprovalRequested",

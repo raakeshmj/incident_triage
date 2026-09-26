@@ -71,6 +71,17 @@ an immutable remediation timeline (`architecture/09-...md`, "Phase 7: as
 built"; ADR-0024). No automatic execution; verification is requested but
 not performed; no approval UI (API only).
 
+Build session "Phase 8" (the final planned build session) closes the loop:
+deterministic, evidence-based verification with pre-remediation baselines,
+per-action windows and consecutive-success rules; VERIFYING → RESOLVED only
+on a PASSED verification, VERIFICATION_FAILED → re-investigation (bounded)
+or ESCALATED, TIMED_OUT → ESCALATED (`architecture/10-verification-design.md`,
+ADR-0025). It also adds the read API and the operations console
+(`apps/dashboard`, Carbon; `frontend/design-workflow.md`), full-lifecycle
+evaluation and replay, worker heartbeats and `docs/operations.md`. Still not
+built: pre-approved `ALLOW` execution, shadow mode against real production
+systems, identity-provider auth, `CLOSED`/`SUPPRESSED`.
+
 ## Phase 0 — Foundations (no services yet)
 
 - `libs/schemas`: Pydantic models for the domain entities, event envelope,

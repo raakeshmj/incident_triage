@@ -20,7 +20,9 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+
+from packages.domain.verification import CheckTemplate, VerificationPolicy
 
 CATALOG_VERSION = "catalog-2026.09-1"
 
@@ -57,14 +59,14 @@ class RevertConfigurationParams(_Params):
     from_value: str | int | float | bool | None = Field(description="Must be the current value.")
     to_value: str | int | float | bool | None
 
-
-@dataclass(frozen=True)
-class VerificationRequirement:
-    """What verification (a later phase) must observe after execution."""
-
-    metric: str
-    max_value: float
-    window_seconds: int
+    @field_validator("to_value")
+    @classmethod
+    def _has_a_previous_value(cls, value: object) -> object:
+        # A change with no previous value (a key that didn't exist) has nothing
+        # to revert to; "reverting" it to null would be a new change.
+        if value is None:
+            raise ValueError("no previous value to revert to")
+        return value
 
 
 @dataclass(frozen=True)
@@ -83,7 +85,10 @@ class ActionCatalogEntry:
     retry_safe: bool  # may a failed/unknown attempt be retried without double-acting?
     requires_rca: bool
     target_must_match_root_cause: bool
-    verification: tuple[VerificationRequirement, ...] = field(default_factory=tuple)
+    # What verification must observe afterwards (packages/domain/verification.py)
+    verification: VerificationPolicy = field(
+        default_factory=lambda: VerificationPolicy(0, 0, 1, 1, False)
+    )
 
     def validate(self, parameters: dict[str, Any]) -> tuple[_Params | None, list[str]]:
         try:
@@ -117,12 +122,15 @@ class ActionCatalogEntry:
             "retry_safe": self.retry_safe,
             "requires_rca": self.requires_rca,
             "target_must_match_root_cause": self.target_must_match_root_cause,
-            "verification": [v.__dict__ for v in self.verification],
+            "verification": self.verification.describe(),
         }
 
 
 _ENVS = frozenset({"production", "staging"})
-_ERRORS_BACK_DOWN = (VerificationRequirement("error_rate", 0.05, 300),)
+_HEALTHY = CheckTemplate("health.status")
+_NO_NEW_ALERTS = CheckTemplate("alerts.no_new_firing")
+_ERRORS_OK = CheckTemplate("metric.max", "error_rate", 0.05)
+_LATENCY_OK = CheckTemplate("metric.max", "latency_p95", 1.0)
 
 CATALOG: dict[str, ActionCatalogEntry] = {
     e.action_id: e
@@ -142,7 +150,9 @@ CATALOG: dict[str, ActionCatalogEntry] = {
             retry_safe=True,
             requires_rca=True,
             target_must_match_root_cause=True,
-            verification=_ERRORS_BACK_DOWN,
+            verification=VerificationPolicy(
+                45, 240, 15, 3, True, (_HEALTHY, _ERRORS_OK, _NO_NEW_ALERTS)
+            ),
         ),
         ActionCatalogEntry(
             action_id="scale_service",
@@ -159,7 +169,14 @@ CATALOG: dict[str, ActionCatalogEntry] = {
             retry_safe=False,  # a repeated "add N" adds 2N
             requires_rca=True,
             target_must_match_root_cause=True,
-            verification=(VerificationRequirement("latency_p95", 1.0, 300),),
+            verification=VerificationPolicy(
+                30,
+                240,
+                15,
+                3,
+                True,
+                (CheckTemplate("state.replicas"), _HEALTHY, _LATENCY_OK, _NO_NEW_ALERTS),
+            ),
         ),
         ActionCatalogEntry(
             action_id="rollback_deployment",
@@ -176,7 +193,20 @@ CATALOG: dict[str, ActionCatalogEntry] = {
             retry_safe=True,  # compare-and-set on from_version: a repeat is a no-op
             requires_rca=True,
             target_must_match_root_cause=True,
-            verification=_ERRORS_BACK_DOWN,
+            verification=VerificationPolicy(
+                60,
+                300,
+                15,
+                3,
+                True,
+                (
+                    CheckTemplate("state.deployment_version"),
+                    _HEALTHY,
+                    _ERRORS_OK,
+                    _LATENCY_OK,
+                    _NO_NEW_ALERTS,
+                ),
+            ),
         ),
         ActionCatalogEntry(
             action_id="disable_feature_flag",
@@ -193,7 +223,9 @@ CATALOG: dict[str, ActionCatalogEntry] = {
             retry_safe=True,
             requires_rca=True,
             target_must_match_root_cause=True,
-            verification=_ERRORS_BACK_DOWN,
+            verification=VerificationPolicy(
+                30, 180, 15, 2, False, (CheckTemplate("state.flag"), _HEALTHY, _NO_NEW_ALERTS)
+            ),
         ),
         ActionCatalogEntry(
             action_id="revert_configuration",
@@ -210,7 +242,14 @@ CATALOG: dict[str, ActionCatalogEntry] = {
             retry_safe=True,  # compare-and-set on from_value
             requires_rca=True,
             target_must_match_root_cause=True,
-            verification=_ERRORS_BACK_DOWN,
+            verification=VerificationPolicy(
+                45,
+                240,
+                15,
+                3,
+                True,
+                (CheckTemplate("state.config_value"), _HEALTHY, _ERRORS_OK, _NO_NEW_ALERTS),
+            ),
         ),
     ]
 }

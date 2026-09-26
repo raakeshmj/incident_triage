@@ -1,0 +1,3002 @@
+{
+ "incident": {
+  "id": "6794cfbf-e8dd-4119-93c2-f4005600a100",
+  "status": "VERIFICATION_FAILED",
+  "severity": "critical",
+  "service": "checkout-service",
+  "environment": "production",
+  "correlation_key": "c50fe3e1d7a8b587469be131fa926245c0ac9a68255366ddd693bc300a899b12:1989383",
+  "attempt_count": 1,
+  "version": 6,
+  "created_at": "2026-09-26T17:49:04.744457+00:00",
+  "updated_at": "2026-09-26T17:49:07.928573+00:00",
+  "ended_at": null,
+  "duration_seconds": 33.1
+ },
+ "alerts": [
+  {
+   "id": "a5c998ce-decd-4359-9aaa-338736c9fabb",
+   "alertname": "HighErrorRate",
+   "service": "checkout-service",
+   "severity": "critical",
+   "status": "firing",
+   "source": "prometheus",
+   "summary": "checkout-service 5xx ratio above 10%",
+   "received_at": "2026-09-26T17:49:04.744457+00:00",
+   "resolved_at": null
+  }
+ ],
+ "transitions": [
+  {
+   "at": "2026-09-26T17:49:05.083047+00:00",
+   "from": "TRIAGING",
+   "to": "INVESTIGATING",
+   "reason": "investigation_started"
+  },
+  {
+   "at": "2026-09-26T17:49:06.143958+00:00",
+   "from": "INVESTIGATING",
+   "to": "RCA_READY",
+   "reason": "root_cause_selected"
+  },
+  {
+   "at": "2026-09-26T17:49:06.187200+00:00",
+   "from": "RCA_READY",
+   "to": "AWAITING_APPROVAL",
+   "reason": "remediation_awaiting_approval"
+  },
+  {
+   "at": "2026-09-26T17:49:06.199418+00:00",
+   "from": "AWAITING_APPROVAL",
+   "to": "REMEDIATION_IN_PROGRESS",
+   "reason": "remediation_approved"
+  },
+  {
+   "at": "2026-09-26T17:49:06.328988+00:00",
+   "from": "REMEDIATION_IN_PROGRESS",
+   "to": "VERIFYING",
+   "reason": "remediation_executed"
+  },
+  {
+   "at": "2026-09-26T17:49:07.929724+00:00",
+   "from": "VERIFYING",
+   "to": "VERIFICATION_FAILED",
+   "reason": "verification_failed"
+  }
+ ],
+ "investigations": [
+  {
+   "investigation": {
+    "id": "abc6d51a-8d54-4173-891f-49563eaa63b1",
+    "incident_id": "6794cfbf-e8dd-4119-93c2-f4005600a100",
+    "attempt_number": 1,
+    "status": "COMPLETED",
+    "model_provider": "fake",
+    "model_name": "heuristic-investigator",
+    "model_settings": {
+     "effort": null,
+     "thinking": "none",
+     "max_tokens": 4096,
+     "max_retries": 0,
+     "prompt_cache": "off",
+     "prompt_version": "investigation-v2",
+     "timeout_seconds": 10
+    },
+    "budget": {
+     "max_iterations": 15,
+     "max_tool_calls": 25,
+     "max_identical_tool_calls": 2,
+     "max_evidence_items": 40,
+     "max_wall_clock_seconds": 900,
+     "max_total_tokens": 600000,
+     "max_consecutive_invalid_turns": 3,
+     "max_consecutive_tool_failures": 5
+    },
+    "iteration_count": 4,
+    "tool_call_count": 12,
+    "evidence_count": 12,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_read_tokens": 0,
+    "cache_creation_tokens": 0,
+    "last_action": "completed",
+    "failure_reason": null,
+    "escalation_reason": null,
+    "inconclusive_reason": null,
+    "selected_hypothesis_id": "b34b5b9e-38e0-41bb-a452-a2b52c5e24c3",
+    "final_result": {
+     "outcome": "root_cause_identified",
+     "confidence": 0.8,
+     "rca_report_id": "223c984f-40d9-493e-be2a-794a422b1dfb",
+     "selected_hypothesis_key": "deploy_checkout-"
+    },
+    "created_at": "2026-09-26T17:49:05.026999Z",
+    "started_at": "2026-09-26T17:49:05.128402Z",
+    "completed_at": "2026-09-26T17:49:06.136957Z"
+   },
+   "hypotheses": [
+    {
+     "key": "config_checkout-",
+     "description": "A recent configuration change to checkout-service caused the incident.",
+     "cause_category": "configuration",
+     "component": "checkout-service",
+     "status": "WEAKENED",
+     "confidence": 0.1,
+     "supporting_evidence_ids": [],
+     "contradicting_evidence_ids": [
+      "66fdce5d-3091-4577-b9aa-c5bf68b47a4e"
+     ],
+     "missing_evidence": []
+    },
+    {
+     "key": "dep_inventory-se",
+     "description": "inventory-service, a dependency of checkout-service, is failing or slow.",
+     "cause_category": "dependency",
+     "component": "inventory-service",
+     "status": "WEAKENED",
+     "confidence": 0.1,
+     "supporting_evidence_ids": [],
+     "contradicting_evidence_ids": [
+      "3220b5d0-f05e-4d68-a930-b236d3b8587d"
+     ],
+     "missing_evidence": []
+    },
+    {
+     "key": "dep_orders-db",
+     "description": "orders-db, a dependency of checkout-service, is failing or slow.",
+     "cause_category": "database",
+     "component": "orders-db",
+     "status": "WEAKENED",
+     "confidence": 0.1,
+     "supporting_evidence_ids": [],
+     "contradicting_evidence_ids": [
+      "938dcebd-da0f-4188-b2a4-4f2bc6dd5530"
+     ],
+     "missing_evidence": []
+    },
+    {
+     "key": "dep_payment-serv",
+     "description": "payment-service, a dependency of checkout-service, is failing or slow.",
+     "cause_category": "dependency",
+     "component": "payment-service",
+     "status": "WEAKENED",
+     "confidence": 0.1,
+     "supporting_evidence_ids": [],
+     "contradicting_evidence_ids": [
+      "f6033b7c-0639-4b03-82ff-cf9195731674"
+     ],
+     "missing_evidence": []
+    },
+    {
+     "key": "deploy_checkout-",
+     "description": "A recent deployment change to checkout-service caused the incident.",
+     "cause_category": "deployment",
+     "component": "checkout-service",
+     "status": "SELECTED",
+     "confidence": 0.8,
+     "supporting_evidence_ids": [
+      "3fc4b14d-9eff-466d-a005-445f734e585f",
+      "71b1480d-e9ef-4ce5-a0b8-8ccf6b8c5bf1",
+      "b45560bf-9f45-4936-a028-0a8315ebe4fd"
+     ],
+     "contradicting_evidence_ids": [],
+     "missing_evidence": []
+    },
+    {
+     "key": "resource_cpu",
+     "description": "checkout-service is failing because of resource cpu.",
+     "cause_category": "resource_cpu",
+     "component": "checkout-service",
+     "status": "WEAKENED",
+     "confidence": 0.1,
+     "supporting_evidence_ids": [],
+     "contradicting_evidence_ids": [
+      "77a038b8-0f58-45e4-a43d-15249e21857a"
+     ],
+     "missing_evidence": []
+    },
+    {
+     "key": "resource_memory",
+     "description": "checkout-service is failing because of resource memory.",
+     "cause_category": "resource_memory",
+     "component": "checkout-service",
+     "status": "WEAKENED",
+     "confidence": 0.1,
+     "supporting_evidence_ids": [],
+     "contradicting_evidence_ids": [
+      "6aedbcd1-fd94-44b6-893c-e0fb88eacb0f"
+     ],
+     "missing_evidence": []
+    },
+    {
+     "key": "traffic",
+     "description": "checkout-service is failing because of traffic.",
+     "cause_category": "traffic",
+     "component": "checkout-service",
+     "status": "WEAKENED",
+     "confidence": 0.1,
+     "supporting_evidence_ids": [],
+     "contradicting_evidence_ids": [
+      "23c00b8d-11bf-445f-a53c-71e132ff8795"
+     ],
+     "missing_evidence": []
+    }
+   ],
+   "tool_calls": [
+    {
+     "sequence": 4,
+     "iteration": 1,
+     "at": "2026-09-26T17:49:05.723839Z",
+     "tool": "get_service_health",
+     "arguments": {
+      "service": "checkout-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "checkout-service is degraded at 2026-09-26T17:49:05.668218+00:00 (error_rate)",
+     "evidence_ids": [
+      "2cab5fe5-7408-4635-a7c8-65c0816df7bd"
+     ]
+    },
+    {
+     "sequence": 5,
+     "iteration": 1,
+     "at": "2026-09-26T17:49:05.786779Z",
+     "tool": "get_metric_window",
+     "arguments": {
+      "metric": "error_rate",
+      "service": "checkout-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "error_rate for checkout-service: current=32.00%, window avg=11.15% vs baseline avg=0.20% (up)",
+     "evidence_ids": [
+      "b45560bf-9f45-4936-a028-0a8315ebe4fd"
+     ]
+    },
+    {
+     "sequence": 6,
+     "iteration": 1,
+     "at": "2026-09-26T17:49:05.864049Z",
+     "tool": "get_metric_window",
+     "arguments": {
+      "metric": "latency_p95",
+      "service": "checkout-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "latency_p95 for checkout-service: current=120.0ms, window avg=120.0ms vs baseline avg=120.0ms (flat)",
+     "evidence_ids": [
+      "130770df-5758-4d60-b506-d4ef47fc4b57"
+     ]
+    },
+    {
+     "sequence": 7,
+     "iteration": 1,
+     "at": "2026-09-26T17:49:05.896539Z",
+     "tool": "get_recent_deployments",
+     "arguments": {
+      "service": "checkout-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "checkout-service running 4.2.0 (from 4.1.3, deployed 2026-09-26T17:37:04.469447+00:00); 1 deployment(s) in window",
+     "evidence_ids": [
+      "71b1480d-e9ef-4ce5-a0b8-8ccf6b8c5bf1"
+     ]
+    },
+    {
+     "sequence": 8,
+     "iteration": 1,
+     "at": "2026-09-26T17:49:05.926032Z",
+     "tool": "get_config_changes",
+     "arguments": {
+      "service": "checkout-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "0 config change(s) for checkout-service in window; effective: none on record",
+     "evidence_ids": [
+      "66fdce5d-3091-4577-b9aa-c5bf68b47a4e"
+     ]
+    },
+    {
+     "sequence": 9,
+     "iteration": 1,
+     "at": "2026-09-26T17:49:05.964826Z",
+     "tool": "get_logs",
+     "arguments": {
+      "service": "checkout-service",
+      "severities": [
+       "ERROR",
+       "WARNING",
+       "CRITICAL"
+      ]
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "60 matching log lines for checkout-service (60 ERROR/CRITICAL) in window; top: \"unhandled exception while serializing order: KeyError 'gift_wrap'\" x60",
+     "evidence_ids": [
+      "3fc4b14d-9eff-466d-a005-445f734e585f"
+     ]
+    },
+    {
+     "sequence": 10,
+     "iteration": 1,
+     "at": "2026-09-26T17:49:06.003235Z",
+     "tool": "get_service_health",
+     "arguments": {
+      "service": "payment-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "payment-service is healthy at 2026-09-26T17:49:05.978314+00:00 (no threshold violations)",
+     "evidence_ids": [
+      "f6033b7c-0639-4b03-82ff-cf9195731674"
+     ]
+    },
+    {
+     "sequence": 11,
+     "iteration": 1,
+     "at": "2026-09-26T17:49:06.016300Z",
+     "tool": "get_service_health",
+     "arguments": {
+      "service": "inventory-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "inventory-service is healthy at 2026-09-26T17:49:06.008198+00:00 (no threshold violations)",
+     "evidence_ids": [
+      "3220b5d0-f05e-4d68-a930-b236d3b8587d"
+     ]
+    },
+    {
+     "sequence": 12,
+     "iteration": 1,
+     "at": "2026-09-26T17:49:06.026833Z",
+     "tool": "get_service_health",
+     "arguments": {
+      "service": "orders-db"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "orders-db is healthy at 2026-09-26T17:49:06.019462+00:00 (no threshold violations)",
+     "evidence_ids": [
+      "938dcebd-da0f-4188-b2a4-4f2bc6dd5530"
+     ]
+    },
+    {
+     "sequence": 15,
+     "iteration": 2,
+     "at": "2026-09-26T17:49:06.053483Z",
+     "tool": "get_metric_window",
+     "arguments": {
+      "metric": "request_rate",
+      "service": "checkout-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "request_rate for checkout-service: current=50 req/s, window avg=50 req/s vs baseline avg=50 req/s (flat)",
+     "evidence_ids": [
+      "23c00b8d-11bf-445f-a53c-71e132ff8795"
+     ]
+    },
+    {
+     "sequence": 16,
+     "iteration": 2,
+     "at": "2026-09-26T17:49:06.067011Z",
+     "tool": "get_metric_window",
+     "arguments": {
+      "metric": "cpu_usage",
+      "service": "checkout-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "cpu_usage for checkout-service: current=30.00%, window avg=30.00% vs baseline avg=30.00% (flat)",
+     "evidence_ids": [
+      "77a038b8-0f58-45e4-a43d-15249e21857a"
+     ]
+    },
+    {
+     "sequence": 17,
+     "iteration": 2,
+     "at": "2026-09-26T17:49:06.079251Z",
+     "tool": "get_metric_window",
+     "arguments": {
+      "metric": "memory_usage",
+      "service": "checkout-service"
+     },
+     "ok": true,
+     "error_code": null,
+     "summary": "memory_usage for checkout-service: current=120.0MB, window avg=120.0MB vs baseline avg=120.0MB (flat)",
+     "evidence_ids": [
+      "6aedbcd1-fd94-44b6-893c-e0fb88eacb0f"
+     ]
+    }
+   ],
+   "hypothesis_updates": [
+    {
+     "at": "2026-09-26T17:49:06.114817Z",
+     "iteration": 3,
+     "applied": [
+      {
+       "key": "deploy_checkout-",
+       "component": "checkout-service",
+       "rationale": "3 supporting item(s) of types ['deployment', 'log', 'metric']; 0 contradicting.",
+       "to_status": "SUPPORTED",
+       "confidence": 0.8,
+       "from_status": null,
+       "cause_category": "deployment",
+       "added_supporting": [
+        "3fc4b14d-9eff-466d-a005-445f734e585f",
+        "71b1480d-e9ef-4ce5-a0b8-8ccf6b8c5bf1",
+        "b45560bf-9f45-4936-a028-0a8315ebe4fd"
+       ],
+       "added_contradicting": []
+      },
+      {
+       "key": "config_checkout-",
+       "component": "checkout-service",
+       "rationale": "0 supporting item(s) of types []; 1 contradicting.",
+       "to_status": "WEAKENED",
+       "confidence": 0.1,
+       "from_status": null,
+       "cause_category": "configuration",
+       "added_supporting": [],
+       "added_contradicting": [
+        "66fdce5d-3091-4577-b9aa-c5bf68b47a4e"
+       ]
+      },
+      {
+       "key": "dep_inventory-se",
+       "component": "inventory-service",
+       "rationale": "0 supporting item(s) of types []; 1 contradicting.",
+       "to_status": "WEAKENED",
+       "confidence": 0.1,
+       "from_status": null,
+       "cause_category": "dependency",
+       "added_supporting": [],
+       "added_contradicting": [
+        "3220b5d0-f05e-4d68-a930-b236d3b8587d"
+       ]
+      },
+      {
+       "key": "dep_orders-db",
+       "component": "orders-db",
+       "rationale": "0 supporting item(s) of types []; 1 contradicting.",
+       "to_status": "WEAKENED",
+       "confidence": 0.1,
+       "from_status": null,
+       "cause_category": "database",
+       "added_supporting": [],
+       "added_contradicting": [
+        "938dcebd-da0f-4188-b2a4-4f2bc6dd5530"
+       ]
+      },
+      {
+       "key": "dep_payment-serv",
+       "component": "payment-service",
+       "rationale": "0 supporting item(s) of types []; 1 contradicting.",
+       "to_status": "WEAKENED",
+       "confidence": 0.1,
+       "from_status": null,
+       "cause_category": "dependency",
+       "added_supporting": [],
+       "added_contradicting": [
+        "f6033b7c-0639-4b03-82ff-cf9195731674"
+       ]
+      },
+      {
+       "key": "resource_cpu",
+       "component": "checkout-service",
+       "rationale": "0 supporting item(s) of types []; 1 contradicting.",
+       "to_status": "WEAKENED",
+       "confidence": 0.1,
+       "from_status": null,
+       "cause_category": "resource_cpu",
+       "added_supporting": [],
+       "added_contradicting": [
+        "77a038b8-0f58-45e4-a43d-15249e21857a"
+       ]
+      },
+      {
+       "key": "resource_memory",
+       "component": "checkout-service",
+       "rationale": "0 supporting item(s) of types []; 1 contradicting.",
+       "to_status": "WEAKENED",
+       "confidence": 0.1,
+       "from_status": null,
+       "cause_category": "resource_memory",
+       "added_supporting": [],
+       "added_contradicting": [
+        "6aedbcd1-fd94-44b6-893c-e0fb88eacb0f"
+       ]
+      },
+      {
+       "key": "traffic",
+       "component": "checkout-service",
+       "rationale": "0 supporting item(s) of types []; 1 contradicting.",
+       "to_status": "WEAKENED",
+       "confidence": 0.1,
+       "from_status": null,
+       "cause_category": "traffic",
+       "added_supporting": [],
+       "added_contradicting": [
+        "23c00b8d-11bf-445f-a53c-71e132ff8795"
+       ]
+      }
+     ],
+     "rejected": [],
+     "hypotheses": [
+      {
+       "key": "deploy_checkout-",
+       "status": "SUPPORTED",
+       "component": "checkout-service",
+       "confidence": 0.8,
+       "description": "A recent deployment change to checkout-service caused the incident.",
+       "cause_category": "deployment",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [
+        "3fc4b14d-9eff-466d-a005-445f734e585f",
+        "71b1480d-e9ef-4ce5-a0b8-8ccf6b8c5bf1",
+        "b45560bf-9f45-4936-a028-0a8315ebe4fd"
+       ],
+       "contradicting_evidence_ids": []
+      },
+      {
+       "key": "config_checkout-",
+       "status": "WEAKENED",
+       "component": "checkout-service",
+       "confidence": 0.1,
+       "description": "A recent configuration change to checkout-service caused the incident.",
+       "cause_category": "configuration",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "66fdce5d-3091-4577-b9aa-c5bf68b47a4e"
+       ]
+      },
+      {
+       "key": "dep_inventory-se",
+       "status": "WEAKENED",
+       "component": "inventory-service",
+       "confidence": 0.1,
+       "description": "inventory-service, a dependency of checkout-service, is failing or slow.",
+       "cause_category": "dependency",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "3220b5d0-f05e-4d68-a930-b236d3b8587d"
+       ]
+      },
+      {
+       "key": "dep_orders-db",
+       "status": "WEAKENED",
+       "component": "orders-db",
+       "confidence": 0.1,
+       "description": "orders-db, a dependency of checkout-service, is failing or slow.",
+       "cause_category": "database",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "938dcebd-da0f-4188-b2a4-4f2bc6dd5530"
+       ]
+      },
+      {
+       "key": "dep_payment-serv",
+       "status": "WEAKENED",
+       "component": "payment-service",
+       "confidence": 0.1,
+       "description": "payment-service, a dependency of checkout-service, is failing or slow.",
+       "cause_category": "dependency",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "f6033b7c-0639-4b03-82ff-cf9195731674"
+       ]
+      },
+      {
+       "key": "resource_cpu",
+       "status": "WEAKENED",
+       "component": "checkout-service",
+       "confidence": 0.1,
+       "description": "checkout-service is failing because of resource cpu.",
+       "cause_category": "resource_cpu",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "77a038b8-0f58-45e4-a43d-15249e21857a"
+       ]
+      },
+      {
+       "key": "resource_memory",
+       "status": "WEAKENED",
+       "component": "checkout-service",
+       "confidence": 0.1,
+       "description": "checkout-service is failing because of resource memory.",
+       "cause_category": "resource_memory",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "6aedbcd1-fd94-44b6-893c-e0fb88eacb0f"
+       ]
+      },
+      {
+       "key": "traffic",
+       "status": "WEAKENED",
+       "component": "checkout-service",
+       "confidence": 0.1,
+       "description": "checkout-service is failing because of traffic.",
+       "cause_category": "traffic",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "23c00b8d-11bf-445f-a53c-71e132ff8795"
+       ]
+      }
+     ]
+    }
+   ],
+   "conclusion_rejections": [],
+   "rca": {
+    "id": "223c984f-40d9-493e-be2a-794a422b1dfb",
+    "summary": "Root cause (confidence 0.80): A recent deployment change to checkout-service caused the incident. [3fc4b14d, 71b1480d, b45560bf]\nSummary: checkout-service degraded; evidence points to deployment in checkout-service. [3fc4b14d, 71b1480d, b45560bf]\nImpact: checkout-service requests were affected. [b45560bf]\nAffected services: checkout-service [b45560bf]\nTimeline:\n  2026-09-26T17:49:05.750753Z deployment anomaly observed in checkout-service [3fc4b14d]",
+    "report": {
+     "impact": {
+      "text": "checkout-service requests were affected.",
+      "evidence_ids": [
+       "b45560bf-9f45-4936-a028-0a8315ebe4fd"
+      ]
+     },
+     "timeline": [
+      {
+       "at": "2026-09-26T17:49:05.750753Z",
+       "event": "deployment anomaly observed in checkout-service",
+       "evidence_ids": [
+        "3fc4b14d-9eff-466d-a005-445f734e585f"
+       ]
+      }
+     ],
+     "confidence": 0.8,
+     "root_cause": {
+      "text": "A recent deployment change to checkout-service caused the incident.",
+      "evidence_ids": [
+       "3fc4b14d-9eff-466d-a005-445f734e585f",
+       "71b1480d-e9ef-4ce5-a0b8-8ccf6b8c5bf1",
+       "b45560bf-9f45-4936-a028-0a8315ebe4fd"
+      ]
+     },
+     "incident_summary": {
+      "text": "checkout-service degraded; evidence points to deployment in checkout-service.",
+      "evidence_ids": [
+       "3fc4b14d-9eff-466d-a005-445f734e585f",
+       "71b1480d-e9ef-4ce5-a0b8-8ccf6b8c5bf1",
+       "b45560bf-9f45-4936-a028-0a8315ebe4fd"
+      ]
+     },
+     "affected_services": [
+      {
+       "service": "checkout-service",
+       "evidence_ids": [
+        "b45560bf-9f45-4936-a028-0a8315ebe4fd"
+       ]
+      }
+     ],
+     "supporting_evidence": [
+      "3fc4b14d-9eff-466d-a005-445f734e585f",
+      "71b1480d-e9ef-4ce5-a0b8-8ccf6b8c5bf1",
+      "b45560bf-9f45-4936-a028-0a8315ebe4fd"
+     ],
+     "competing_hypotheses": [
+      {
+       "key": "config_checkout-",
+       "status": "WEAKENED",
+       "component": "checkout-service",
+       "confidence": 0.1,
+       "description": "A recent configuration change to checkout-service caused the incident.",
+       "cause_category": "configuration",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "66fdce5d-3091-4577-b9aa-c5bf68b47a4e"
+       ]
+      },
+      {
+       "key": "dep_inventory-se",
+       "status": "WEAKENED",
+       "component": "inventory-service",
+       "confidence": 0.1,
+       "description": "inventory-service, a dependency of checkout-service, is failing or slow.",
+       "cause_category": "dependency",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "3220b5d0-f05e-4d68-a930-b236d3b8587d"
+       ]
+      },
+      {
+       "key": "dep_orders-db",
+       "status": "WEAKENED",
+       "component": "orders-db",
+       "confidence": 0.1,
+       "description": "orders-db, a dependency of checkout-service, is failing or slow.",
+       "cause_category": "database",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "938dcebd-da0f-4188-b2a4-4f2bc6dd5530"
+       ]
+      },
+      {
+       "key": "dep_payment-serv",
+       "status": "WEAKENED",
+       "component": "payment-service",
+       "confidence": 0.1,
+       "description": "payment-service, a dependency of checkout-service, is failing or slow.",
+       "cause_category": "dependency",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "f6033b7c-0639-4b03-82ff-cf9195731674"
+       ]
+      },
+      {
+       "key": "resource_cpu",
+       "status": "WEAKENED",
+       "component": "checkout-service",
+       "confidence": 0.1,
+       "description": "checkout-service is failing because of resource cpu.",
+       "cause_category": "resource_cpu",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "77a038b8-0f58-45e4-a43d-15249e21857a"
+       ]
+      },
+      {
+       "key": "resource_memory",
+       "status": "WEAKENED",
+       "component": "checkout-service",
+       "confidence": 0.1,
+       "description": "checkout-service is failing because of resource memory.",
+       "cause_category": "resource_memory",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "6aedbcd1-fd94-44b6-893c-e0fb88eacb0f"
+       ]
+      },
+      {
+       "key": "traffic",
+       "status": "WEAKENED",
+       "component": "checkout-service",
+       "confidence": 0.1,
+       "description": "checkout-service is failing because of traffic.",
+       "cause_category": "traffic",
+       "missing_evidence": [],
+       "supporting_evidence_ids": [],
+       "contradicting_evidence_ids": [
+        "23c00b8d-11bf-445f-a53c-71e132ff8795"
+       ]
+      }
+     ],
+     "contributing_factors": [],
+     "unresolved_questions": [],
+     "investigation_actions": [
+      {
+       "ok": true,
+       "tool": "get_service_health",
+       "summary": "checkout-service is degraded at 2026-09-26T17:49:05.668218+00:00 (error_rate)",
+       "arguments": {
+        "service": "checkout-service"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "2cab5fe5-7408-4635-a7c8-65c0816df7bd"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_metric_window",
+       "summary": "error_rate for checkout-service: current=32.00%, window avg=11.15% vs baseline avg=0.20% (up)",
+       "arguments": {
+        "metric": "error_rate",
+        "service": "checkout-service"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "b45560bf-9f45-4936-a028-0a8315ebe4fd"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_metric_window",
+       "summary": "latency_p95 for checkout-service: current=120.0ms, window avg=120.0ms vs baseline avg=120.0ms (flat)",
+       "arguments": {
+        "metric": "latency_p95",
+        "service": "checkout-service"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "130770df-5758-4d60-b506-d4ef47fc4b57"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_recent_deployments",
+       "summary": "checkout-service running 4.2.0 (from 4.1.3, deployed 2026-09-26T17:37:04.469447+00:00); 1 deployment(s) in window",
+       "arguments": {
+        "service": "checkout-service"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "71b1480d-e9ef-4ce5-a0b8-8ccf6b8c5bf1"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_config_changes",
+       "summary": "0 config change(s) for checkout-service in window; effective: none on record",
+       "arguments": {
+        "service": "checkout-service"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "66fdce5d-3091-4577-b9aa-c5bf68b47a4e"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_logs",
+       "summary": "60 matching log lines for checkout-service (60 ERROR/CRITICAL) in window; top: \"unhandled exception while serializing order: KeyError 'gift_wrap'\" x60",
+       "arguments": {
+        "service": "checkout-service",
+        "severities": [
+         "ERROR",
+         "WARNING",
+         "CRITICAL"
+        ]
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "3fc4b14d-9eff-466d-a005-445f734e585f"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_service_health",
+       "summary": "payment-service is healthy at 2026-09-26T17:49:05.978314+00:00 (no threshold violations)",
+       "arguments": {
+        "service": "payment-service"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "f6033b7c-0639-4b03-82ff-cf9195731674"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_service_health",
+       "summary": "inventory-service is healthy at 2026-09-26T17:49:06.008198+00:00 (no threshold violations)",
+       "arguments": {
+        "service": "inventory-service"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "3220b5d0-f05e-4d68-a930-b236d3b8587d"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_service_health",
+       "summary": "orders-db is healthy at 2026-09-26T17:49:06.019462+00:00 (no threshold violations)",
+       "arguments": {
+        "service": "orders-db"
+       },
+       "iteration": 1,
+       "evidence_ids": [
+        "938dcebd-da0f-4188-b2a4-4f2bc6dd5530"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_metric_window",
+       "summary": "request_rate for checkout-service: current=50 req/s, window avg=50 req/s vs baseline avg=50 req/s (flat)",
+       "arguments": {
+        "metric": "request_rate",
+        "service": "checkout-service"
+       },
+       "iteration": 2,
+       "evidence_ids": [
+        "23c00b8d-11bf-445f-a53c-71e132ff8795"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_metric_window",
+       "summary": "cpu_usage for checkout-service: current=30.00%, window avg=30.00% vs baseline avg=30.00% (flat)",
+       "arguments": {
+        "metric": "cpu_usage",
+        "service": "checkout-service"
+       },
+       "iteration": 2,
+       "evidence_ids": [
+        "77a038b8-0f58-45e4-a43d-15249e21857a"
+       ]
+      },
+      {
+       "ok": true,
+       "tool": "get_metric_window",
+       "summary": "memory_usage for checkout-service: current=120.0MB, window avg=120.0MB vs baseline avg=120.0MB (flat)",
+       "arguments": {
+        "metric": "memory_usage",
+        "service": "checkout-service"
+       },
+       "iteration": 2,
+       "evidence_ids": [
+        "6aedbcd1-fd94-44b6-893c-e0fb88eacb0f"
+       ]
+      }
+     ],
+     "root_cause_hypothesis": {
+      "key": "deploy_checkout-",
+      "component": "checkout-service",
+      "description": "A recent deployment change to checkout-service caused the incident.",
+      "cause_category": "deployment"
+     },
+     "contradicting_evidence": [],
+     "recommended_next_diagnostic_action": "Confirm with the owners of checkout-service."
+    }
+   }
+  }
+ ],
+ "remediations": [
+  {
+   "remediation": {
+    "id": "22e86884-dd0f-41ff-9baa-b71e5058300e",
+    "incident_id": "6794cfbf-e8dd-4119-93c2-f4005600a100",
+    "investigation_id": "abc6d51a-8d54-4173-891f-49563eaa63b1",
+    "action_id": "rollback_deployment",
+    "catalog_version": "catalog-2026.09-1",
+    "parameters": {
+     "service": "checkout-service",
+     "to_version": "4.1.3",
+     "from_version": "4.2.0"
+    },
+    "target_service": "checkout-service",
+    "environment": "production",
+    "reason": "RCA of investigation abc6d51a-8d54-4173-891f-49563eaa63b1: deployment in checkout-service. A recent deployment change to checkout-service caused the incident.",
+    "expected_effect": "checkout-service returns to 4.1.3; its error rate returns below 5%",
+    "blast_radius_tier": 2,
+    "proposal_hash": "sha256:c8a53fc1f1b735c89b10a41fb29fc952c113bfe1776eca4ca5819af9bb0dfca8",
+    "source": "planner",
+    "proposed_by": "remediation-planner",
+    "status": "EXECUTED",
+    "policy_decision_id": "a97c032e-1887-4f87-8f7e-f5d7a5dae9f0",
+    "policy_decision": "REQUIRE_APPROVAL",
+    "approval_status": "approved",
+    "execution_status": "SUCCEEDED",
+    "execution_attempts": 1,
+    "executor_result": {
+     "attempt": 1,
+     "to_version": "4.1.3"
+    },
+    "failure_reason": null,
+    "verification_ref": "db8cc6a9-d4f6-445c-a11e-e0e5037ef351",
+    "correlation_id": "6794cfbf-e8dd-4119-93c2-f4005600a100",
+    "created_at": "2026-09-26T17:49:06.161594Z",
+    "updated_at": "2026-09-26T17:49:06.292583Z",
+    "completed_at": "2026-09-26T17:49:06.291050Z"
+   },
+   "policy_decisions": [
+    {
+     "id": "a97c032e-1887-4f87-8f7e-f5d7a5dae9f0",
+     "decision": "REQUIRE_APPROVAL",
+     "policy_version": "policy-2026.09-1",
+     "catalog_version": "catalog-2026.09-1",
+     "catalog_digest": "sha256:8b7b1528f7ac84e2a99c3135a2df052905ca188b306885c724c2c86723d1ab07",
+     "proposal_hash": "sha256:c8a53fc1f1b735c89b10a41fb29fc952c113bfe1776eca4ca5819af9bb0dfca8",
+     "blast_radius_tier": 2,
+     "required_approver_roles": [
+      "service_owner"
+     ],
+     "rules": [
+      {
+       "detail": "global kill switch released",
+       "outcome": "pass",
+       "rule_id": "kill_switch.global"
+      },
+      {
+       "detail": "service kill switch released",
+       "outcome": "pass",
+       "rule_id": "kill_switch.service"
+      },
+      {
+       "detail": "action 'rollback_deployment' is in catalog catalog-2026.09-1",
+       "outcome": "pass",
+       "rule_id": "action.known"
+      },
+      {
+       "detail": "parameters valid",
+       "outcome": "pass",
+       "rule_id": "action.parameters"
+      },
+      {
+       "detail": "catalog entry permits automatic execution: False (not used by this policy)",
+       "outcome": "pass",
+       "rule_id": "action.auto_execution_not_requested"
+      },
+      {
+       "detail": "target 'checkout-service' is a catalogued service",
+       "outcome": "pass",
+       "rule_id": "target.known"
+      },
+      {
+       "detail": "target 'checkout-service' is within the incident's service scope",
+       "outcome": "pass",
+       "rule_id": "target.in_incident_scope"
+      },
+      {
+       "detail": "environment 'production' permitted by policy",
+       "outcome": "pass",
+       "rule_id": "environment.not_prohibited"
+      },
+      {
+       "detail": "rollback_deployment allowed in 'production'",
+       "outcome": "pass",
+       "rule_id": "environment.allowed_for_action"
+      },
+      {
+       "detail": "blast radius 2 vs rollback_deployment maximum 2",
+       "outcome": "pass",
+       "rule_id": "blast_radius.action_max"
+      },
+      {
+       "detail": "blast radius 2 vs 'production' maximum 2",
+       "outcome": "pass",
+       "rule_id": "blast_radius.environment_max"
+      },
+      {
+       "detail": "incident is RCA_READY",
+       "outcome": "pass",
+       "rule_id": "incident.remediable_status"
+      },
+      {
+       "detail": "a completed investigation with an accepted RCA exists",
+       "outcome": "pass",
+       "rule_id": "rca.required"
+      },
+      {
+       "detail": "target 'checkout-service' vs root-cause component 'checkout-service'",
+       "outcome": "pass",
+       "rule_id": "rca.target_matches_root_cause"
+      },
+      {
+       "detail": "0 remediation(s) already attempted for this incident (limit 2)",
+       "outcome": "pass",
+       "rule_id": "attempts.per_incident"
+      },
+      {
+       "detail": "1 execution(s) on checkout-service in the last hour (limit 3)",
+       "outcome": "pass",
+       "rule_id": "attempts.per_service_per_hour"
+      },
+      {
+       "detail": "human approval required (service_owner)",
+       "outcome": "require_approval",
+       "rule_id": "approval.required"
+      }
+     ],
+     "reasons": [
+      "human approval required (service_owner)"
+     ],
+     "policy_context": {
+      "context_id": "a0874643-f8ee-4dde-861b-94970f907fae",
+      "captured_at": "2026-09-26T17:49:06.161594Z",
+      "incident_id": "6794cfbf-e8dd-4119-93c2-f4005600a100",
+      "target_known": true,
+      "rca_available": true,
+      "rca_component": "checkout-service",
+      "target_service": "checkout-service",
+      "incident_status": "RCA_READY",
+      "proposal_source": "planner",
+      "incident_service": "checkout-service",
+      "incident_severity": "critical",
+      "rca_cause_category": "deployment",
+      "incident_environment": "production",
+      "investigation_status": "COMPLETED",
+      "action_blast_radius_tier": 2,
+      "target_in_incident_scope": true,
+      "global_kill_switch_engaged": false,
+      "service_kill_switch_engaged": false,
+      "attempted_remediations_this_incident": 0,
+      "remediation_executions_last_hour_for_target": 1
+     },
+     "evaluated_at": "2026-09-26T17:49:06.161594+00:00"
+    }
+   ],
+   "executions": [
+    {
+     "id": "8d1d2d3c-7431-4aeb-93a2-6398e95492f6",
+     "attempt": 1,
+     "idempotency_key": "22e86884-dd0f-41ff-9baa-b71e5058300e:1",
+     "status": "SUCCEEDED",
+     "executor": "scenario",
+     "owner": "eval:demo-x",
+     "started_at": "2026-09-26T17:49:06.202162+00:00",
+     "deadline_at": "2026-09-26T17:54:06.202162+00:00",
+     "completed_at": "2026-09-26T17:49:06.291050+00:00",
+     "result": {
+      "to_version": "4.1.3"
+     },
+     "error": null
+    }
+   ],
+   "timeline": [
+    {
+     "sequence": 1,
+     "event": "proposed",
+     "from_status": null,
+     "to_status": "PROPOSED",
+     "actor": "planner:remediation-planner",
+     "correlation_id": "6794cfbf-e8dd-4119-93c2-f4005600a100",
+     "action_id": "rollback_deployment",
+     "catalog_version": "catalog-2026.09-1",
+     "policy_version": null,
+     "details": {
+      "reason": "RCA of investigation abc6d51a-8d54-4173-891f-49563eaa63b1: deployment in checkout-service. A recent deployment change to checkout-service caused the incident.",
+      "parameters": {
+       "service": "checkout-service",
+       "to_version": "4.1.3",
+       "from_version": "4.2.0"
+      },
+      "proposal_hash": "sha256:c8a53fc1f1b735c89b10a41fb29fc952c113bfe1776eca4ca5819af9bb0dfca8",
+      "expected_effect": "checkout-service returns to 4.1.3; its error rate returns below 5%",
+      "idempotency_key": "planner:abc6d51a-8d54-4173-891f-49563eaa63b1"
+     },
+     "occurred_at": "2026-09-26T17:49:06.165104+00:00"
+    },
+    {
+     "sequence": 2,
+     "event": "policy_evaluated",
+     "from_status": "PROPOSED",
+     "to_status": "PROPOSED",
+     "actor": "policy-engine",
+     "correlation_id": "6794cfbf-e8dd-4119-93c2-f4005600a100",
+     "action_id": "rollback_deployment",
+     "catalog_version": "catalog-2026.09-1",
+     "policy_version": "policy-2026.09-1",
+     "details": {
+      "reasons": [
+       "human approval required (service_owner)"
+      ],
+      "decision": "REQUIRE_APPROVAL",
+      "denying_rules": [],
+      "catalog_digest": "sha256:8b7b1528f7ac84e2a99c3135a2df052905ca188b306885c724c2c86723d1ab07",
+      "blast_radius_tier": 2,
+      "policy_decision_id": "a97c032e-1887-4f87-8f7e-f5d7a5dae9f0"
+     },
+     "occurred_at": "2026-09-26T17:49:06.175176+00:00"
+    },
+    {
+     "sequence": 3,
+     "event": "approval_requested",
+     "from_status": "PROPOSED",
+     "to_status": "AWAITING_APPROVAL",
+     "actor": "policy-engine",
+     "correlation_id": "6794cfbf-e8dd-4119-93c2-f4005600a100",
+     "action_id": "rollback_deployment",
+     "catalog_version": "catalog-2026.09-1",
+     "policy_version": "policy-2026.09-1",
+     "details": {
+      "required_approver_roles": [
+       "service_owner"
+      ]
+     },
+     "occurred_at": "2026-09-26T17:49:06.183988+00:00"
+    },
+    {
+     "sequence": 4,
+     "event": "approved",
+     "from_status": "AWAITING_APPROVAL",
+     "to_status": "APPROVED",
+     "actor": "human:eval-approver",
+     "correlation_id": "6794cfbf-e8dd-4119-93c2-f4005600a100",
+     "action_id": "rollback_deployment",
+     "catalog_version": "catalog-2026.09-1",
+     "policy_version": "policy-2026.09-1",
+     "details": {
+      "role": "service_owner",
+      "comment": null
+     },
+     "occurred_at": "2026-09-26T17:49:06.196106+00:00"
+    },
+    {
+     "sequence": 5,
+     "event": "execution_started",
+     "from_status": "APPROVED",
+     "to_status": "EXECUTING",
+     "actor": "worker:eval:demo-x",
+     "correlation_id": "6794cfbf-e8dd-4119-93c2-f4005600a100",
+     "action_id": "rollback_deployment",
+     "catalog_version": "catalog-2026.09-1",
+     "policy_version": "policy-2026.09-1",
+     "details": {
+      "attempt": 1,
+      "deadline": "2026-09-26T17:54:06.202162+00:00",
+      "execution_id": "8d1d2d3c-7431-4aeb-93a2-6398e95492f6",
+      "idempotency_key": "22e86884-dd0f-41ff-9baa-b71e5058300e:1"
+     },
+     "occurred_at": "2026-09-26T17:49:06.205344+00:00"
+    },
+    {
+     "sequence": 6,
+     "event": "baseline_captured",
+     "from_status": "EXECUTING",
+     "to_status": "EXECUTING",
+     "actor": "worker:eval:demo-x",
+     "correlation_id": "6794cfbf-e8dd-4119-93c2-f4005600a100",
+     "action_id": "rollback_deployment",
+     "catalog_version": "catalog-2026.09-1",
+     "policy_version": "policy-2026.09-1",
+     "details": {
+      "values": {
+       "config": null,
+       "health": {
+        "status": "degraded",
+        "signals": {
+         "cpu_usage": 0.3,
+         "error_rate": 0.32,
+         "latency_p95": 0.12,
+         "availability": 1.0,
+         "memory_usage": 125829120.0,
+         "request_rate": 50.0
+        },
+        "violations": [
+         "error_rate"
+        ]
+       },
+       "runtime": null,
+       "deployment": {
+        "version": "4.2.0",
+        "deployed_at": "2026-09-26T17:37:04.469447+00:00",
+        "previous_version": "4.1.3"
+       }
+      },
+      "evidence_ids": [
+       "d8123724-a6fc-483b-bc72-0505d790fe46",
+       "a7c39eb4-d50e-4810-86db-badc538d2105"
+      ]
+     },
+     "occurred_at": "2026-09-26T17:49:06.270651+00:00"
+    },
+    {
+     "sequence": 7,
+     "event": "executed",
+     "from_status": "EXECUTING",
+     "to_status": "EXECUTED",
+     "actor": "executor:scenario",
+     "correlation_id": "6794cfbf-e8dd-4119-93c2-f4005600a100",
+     "action_id": "rollback_deployment",
+     "catalog_version": "catalog-2026.09-1",
+     "policy_version": "policy-2026.09-1",
+     "details": {
+      "result": {
+       "to_version": "4.1.3"
+      },
+      "execution_id": "8d1d2d3c-7431-4aeb-93a2-6398e95492f6"
+     },
+     "occurred_at": "2026-09-26T17:49:06.296183+00:00"
+    },
+    {
+     "sequence": 8,
+     "event": "verification_requested",
+     "from_status": "EXECUTED",
+     "to_status": "EXECUTED",
+     "actor": "incident-core",
+     "correlation_id": "6794cfbf-e8dd-4119-93c2-f4005600a100",
+     "action_id": "rollback_deployment",
+     "catalog_version": "catalog-2026.09-1",
+     "policy_version": "policy-2026.09-1",
+     "details": {
+      "requirements": [
+       {
+        "checks": [
+         {
+          "key": null,
+          "kind": "state.deployment_version",
+          "metric": null,
+          "expected": "4.1.3",
+          "max_value": null,
+          "definitive": true
+         },
+         {
+          "key": null,
+          "kind": "health.status",
+          "metric": null,
+          "expected": "healthy",
+          "max_value": null,
+          "definitive": false
+         },
+         {
+          "key": null,
+          "kind": "metric.max",
+          "metric": "error_rate",
+          "expected": null,
+          "max_value": 0.05,
+          "definitive": false
+         },
+         {
+          "key": null,
+          "kind": "metric.max",
+          "metric": "latency_p95",
+          "expected": null,
+          "max_value": 1.0,
+          "definitive": false
+         },
+         {
+          "key": null,
+          "kind": "alerts.no_new_firing",
+          "metric": null,
+          "expected": 0,
+          "max_value": null,
+          "definitive": false
+         }
+        ],
+        "action_id": "rollback_deployment",
+        "grace_seconds": 0.24,
+        "policy_version": "verification-2026.09-1",
+        "target_service": "checkout-service",
+        "window_seconds": 1.2,
+        "timeout_seconds": 1.56,
+        "required_consecutive": 3,
+        "poll_interval_seconds": 0.06
+       }
+      ],
+      "verification_id": "db8cc6a9-d4f6-445c-a11e-e0e5037ef351"
+     },
+     "occurred_at": "2026-09-26T17:49:06.317658+00:00"
+    }
+   ],
+   "baseline": {
+    "status": "captured",
+    "values": {
+     "config": null,
+     "health": {
+      "status": "degraded",
+      "signals": {
+       "cpu_usage": 0.3,
+       "error_rate": 0.32,
+       "latency_p95": 0.12,
+       "availability": 1.0,
+       "memory_usage": 125829120.0,
+       "request_rate": 50.0
+      },
+      "violations": [
+       "error_rate"
+      ]
+     },
+     "runtime": null,
+     "deployment": {
+      "version": "4.2.0",
+      "deployed_at": "2026-09-26T17:37:04.469447+00:00",
+      "previous_version": "4.1.3"
+     }
+    },
+    "evidence_ids": [
+     "d8123724-a6fc-483b-bc72-0505d790fe46",
+     "a7c39eb4-d50e-4810-86db-badc538d2105"
+    ],
+    "captured_at": "2026-09-26T17:49:06.267070+00:00"
+   }
+  }
+ ],
+ "verifications": [
+  {
+   "verification": {
+    "id": "db8cc6a9-d4f6-445c-a11e-e0e5037ef351",
+    "incident_id": "6794cfbf-e8dd-4119-93c2-f4005600a100",
+    "remediation_id": "22e86884-dd0f-41ff-9baa-b71e5058300e",
+    "verification_type": "rollback_deployment",
+    "policy_version": "verification-2026.09-1",
+    "spec": {
+     "checks": [
+      {
+       "key": null,
+       "kind": "state.deployment_version",
+       "metric": null,
+       "expected": "4.1.3",
+       "max_value": null,
+       "definitive": true
+      },
+      {
+       "key": null,
+       "kind": "health.status",
+       "metric": null,
+       "expected": "healthy",
+       "max_value": null,
+       "definitive": false
+      },
+      {
+       "key": null,
+       "kind": "metric.max",
+       "metric": "error_rate",
+       "expected": null,
+       "max_value": 0.05,
+       "definitive": false
+      },
+      {
+       "key": null,
+       "kind": "metric.max",
+       "metric": "latency_p95",
+       "expected": null,
+       "max_value": 1.0,
+       "definitive": false
+      },
+      {
+       "key": null,
+       "kind": "alerts.no_new_firing",
+       "metric": null,
+       "expected": 0,
+       "max_value": null,
+       "definitive": false
+      }
+     ],
+     "action_id": "rollback_deployment",
+     "grace_seconds": 0.24,
+     "policy_version": "verification-2026.09-1",
+     "target_service": "checkout-service",
+     "window_seconds": 1.2,
+     "timeout_seconds": 1.56,
+     "required_consecutive": 3,
+     "poll_interval_seconds": 0.06
+    },
+    "baseline": {
+     "config": null,
+     "health": {
+      "status": "degraded",
+      "signals": {
+       "cpu_usage": 0.3,
+       "error_rate": 0.32,
+       "latency_p95": 0.12,
+       "availability": 1.0,
+       "memory_usage": 125829120.0,
+       "request_rate": 50.0
+      },
+      "violations": [
+       "error_rate"
+      ]
+     },
+     "runtime": null,
+     "deployment": {
+      "version": "4.2.0",
+      "deployed_at": "2026-09-26T17:37:04.469447+00:00",
+      "previous_version": "4.1.3"
+     },
+     "captured_at": "2026-09-26T17:49:06.267070+00:00",
+     "evidence_ids": [
+      "d8123724-a6fc-483b-bc72-0505d790fe46",
+      "a7c39eb4-d50e-4810-86db-badc538d2105"
+     ]
+    },
+    "status": "FAILED",
+    "consecutive_successes": 0,
+    "observation_count": 13,
+    "result": "FAILED",
+    "failure_reason": "0/3 consecutive successful observations when the window closed (service is degraded; error_rate 0.32 vs max 0.05)",
+    "next_action": "reinvestigate",
+    "correlation_id": "6794cfbf-e8dd-4119-93c2-f4005600a100",
+    "grace_until": "2026-09-26T17:49:06.589773Z",
+    "deadline_at": "2026-09-26T17:49:07.909773Z",
+    "next_poll_at": null,
+    "started_at": "2026-09-26T17:49:06.349773Z",
+    "completed_at": "2026-09-26T17:49:07.925952Z",
+    "created_at": "2026-09-26T17:49:06.308596Z",
+    "updated_at": "2026-09-26T17:49:07.925952Z"
+   },
+   "observations": [
+    {
+     "sequence": 1,
+     "claim_attempt": 1,
+     "observed_at": "2026-09-26T17:49:06.648192+00:00",
+     "passed": false,
+     "conclusive": true,
+     "checks": [
+      {
+       "ok": true,
+       "kind": "state.deployment_version",
+       "detail": "running '4.1.3', expected '4.1.3'",
+       "expected": "4.1.3",
+       "observed": "4.1.3"
+      },
+      {
+       "ok": false,
+       "kind": "health.status",
+       "detail": "service is degraded",
+       "expected": "healthy",
+       "observed": "degraded"
+      },
+      {
+       "ok": false,
+       "kind": "metric.max",
+       "detail": "error_rate 0.32 vs max 0.05",
+       "expected": 0.05,
+       "observed": 0.32
+      },
+      {
+       "ok": true,
+       "kind": "metric.max",
+       "detail": "latency_p95 0.12 vs max 1.0",
+       "expected": 1.0,
+       "observed": 0.12
+      },
+      {
+       "ok": true,
+       "kind": "alerts.no_new_firing",
+       "detail": "0 alert(s) fired since verification started",
+       "expected": 0,
+       "observed": 0
+      }
+     ],
+     "errors": [],
+     "evidence_ids": [
+      "52fcdf51-c6ca-40a6-9bc3-d6e62b596732",
+      "df1fece9-06a8-45ec-8d62-23626de465c6"
+     ]
+    },
+    {
+     "sequence": 2,
+     "claim_attempt": 2,
+     "observed_at": "2026-09-26T17:49:06.765828+00:00",
+     "passed": false,
+     "conclusive": true,
+     "checks": [
+      {
+       "ok": true,
+       "kind": "state.deployment_version",
+       "detail": "running '4.1.3', expected '4.1.3'",
+       "expected": "4.1.3",
+       "observed": "4.1.3"
+      },
+      {
+       "ok": false,
+       "kind": "health.status",
+       "detail": "service is degraded",
+       "expected": "healthy",
+       "observed": "degraded"
+      },
+      {
+       "ok": false,
+       "kind": "metric.max",
+       "detail": "error_rate 0.32 vs max 0.05",
+       "expected": 0.05,
+       "observed": 0.32
+      },
+      {
+       "ok": true,
+       "kind": "metric.max",
+       "detail": "latency_p95 0.12 vs max 1.0",
+       "expected": 1.0,
+       "observed": 0.12
+      },
+      {
+       "ok": true,
+       "kind": "alerts.no_new_firing",
+       "detail": "0 alert(s) fired since verification started",
+       "expected": 0,
+       "observed": 0
+      }
+     ],
+     "errors": [],
+     "evidence_ids": [
+      "505ff7b1-98ae-4b02-a688-43966cc98791",
+      "5b018d7e-56fb-4ea6-aedf-36d4a8b3d111"
+     ]
+    },
+    {
+     "sequence": 3,
+     "claim_attempt": 3,
+     "observed_at": "2026-09-26T17:49:06.863825+00:00",
+     "passed": false,
+     "conclusive": true,
+     "checks": [
+      {
+       "ok": true,
+       "kind": "state.deployment_version",
+       "detail": "running '4.1.3', expected '4.1.3'",
+       "expected": "4.1.3",
+       "observed": "4.1.3"
+      },
+      {
+       "ok": false,
+       "kind": "health.status",
+       "detail": "service is degraded",
+       "expected": "healthy",
+       "observed": "degraded"
+      },
+      {
+       "ok": false,
+       "kind": "metric.max",
+       "detail": "error_rate 0.32 vs max 0.05",
+       "expected": 0.05,
+       "observed": 0.32
+      },
+      {
+       "ok": true,
+       "kind": "metric.max",
+       "detail": "latency_p95 0.12 vs max 1.0",
+       "expected": 1.0,
+       "observed": 0.12
+      },
+      {
+       "ok": true,
+       "kind": "alerts.no_new_firing",
+       "detail": "0 alert(s) fired since verification started",
+       "expected": 0,
+       "observed": 0
+      }
+     ],
+     "errors": [],
+     "evidence_ids": [
+      "759d4c36-3afa-4d33-9948-5c81ddb80504",
+      "e8487246-cac9-46fc-805e-95d47b7b34b4"
+     ]
+    },
+    {
+     "sequence": 4,
+     "claim_attempt": 4,
+     "observed_at": "2026-09-26T17:49:06.947440+00:00",
+     "passed": false,
+     "conclusive": true,
+     "checks": [
+      {
+       "ok": true,
+       "kind": "state.deployment_version",
+       "detail": "running '4.1.3', expected '4.1.3'",
+       "expected": "4.1.3",
+       "observed": "4.1.3"
+      },
+      {
+       "ok": false,
+       "kind": "health.status",
+       "detail": "service is degraded",
+       "expected": "healthy",
+       "observed": "degraded"
+      },
+      {
+       "ok": false,
+       "kind": "metric.max",
+       "detail": "error_rate 0.32 vs max 0.05",
+       "expected": 0.05,
+       "observed": 0.32
+      },
+      {
+       "ok": true,
+       "kind": "metric.max",
+       "detail": "latency_p95 0.12 vs max 1.0",
+       "expected": 1.0,
+       "observed": 0.12
+      },
+      {
+       "ok": true,
+       "kind": "alerts.no_new_firing",
+       "detail": "0 alert(s) fired since verification started",
+       "expected": 0,
+       "observed": 0
+      }
+     ],
+     "errors": [],
+     "evidence_ids": [
+      "470a1be3-17fd-43c5-9d99-245e176a5110",
+      "75692b5c-7715-4323-a4d0-c0f0bdb380eb"
+     ]
+    },
+    {
+     "sequence": 5,
+     "claim_attempt": 5,
+     "observed_at": "2026-09-26T17:49:07.054315+00:00",
+     "passed": false,
+     "conclusive": true,
+     "checks": [
+      {
+       "ok": true,
+       "kind": "state.deployment_version",
+       "detail": "running '4.1.3', expected '4.1.3'",
+       "expected": "4.1.3",
+       "observed": "4.1.3"
+      },
+      {
+       "ok": false,
+       "kind": "health.status",
+       "detail": "service is degraded",
+       "expected": "healthy",
+       "observed": "degraded"
+      },
+      {
+       "ok": false,
+       "kind": "metric.max",
+       "detail": "error_rate 0.32 vs max 0.05",
+       "expected": 0.05,
+       "observed": 0.32
+      },
+      {
+       "ok": true,
+       "kind": "metric.max",
+       "detail": "latency_p95 0.12 vs max 1.0",
+       "expected": 1.0,
+       "observed": 0.12
+      },
+      {
+       "ok": true,
+       "kind": "alerts.no_new_firing",
+       "detail": "0 alert(s) fired since verification started",
+       "expected": 0,
+       "observed": 0
+      }
+     ],
+     "errors": [],
+     "evidence_ids": [
+      "e8e541b0-c177-47b8-a970-85f8528e7885",
+      "904a1e4c-51de-4b6c-a0a9-c6f153f34ea4"
+     ]
+    },
+    {
+     "sequence": 6,
+     "claim_attempt": 6,
+     "observed_at": "2026-09-26T17:49:07.175711+00:00",
+     "passed": false,
+     "conclusive": true,
+     "checks": [
+      {
+       "ok": true,
+       "kind": "state.deployment_version",
+       "detail": "running '4.1.3', expected '4.1.3'",
+       "expected": "4.1.3",
+       "observed": "4.1.3"
+      },
+      {
+       "ok": false,
+       "kind": "health.status",
+       "detail": "service is degraded",
+       "expected": "healthy",
+       "observed": "degraded"
+      },
+      {
+       "ok": false,
+       "kind": "metric.max",
+       "detail": "error_rate 0.32 vs max 0.05",
+       "expected": 0.05,
+       "observed": 0.32
+      },
+      {
+       "ok": true,
+       "kind": "metric.max",
+       "detail": "latency_p95 0.12 vs max 1.0",
+       "expected": 1.0,
+       "observed": 0.12
+      },
+      {
+       "ok": true,
+       "kind": "alerts.no_new_firing",
+       "detail": "0 alert(s) fired since verification started",
+       "expected": 0,
+       "observed": 0
+      }
+     ],
+     "errors": [],
+     "evidence_ids": [
+      "f3778523-5635-4495-a412-7b37924ace34",
+      "555ebaeb-00ab-4a92-8742-12a8f79ba59c"
+     ]
+    },
+    {
+     "sequence": 7,
+     "claim_attempt": 7,
+     "observed_at": "2026-09-26T17:49:07.294422+00:00",
+     "passed": false,
+     "conclusive": true,
+     "checks": [
+      {
+       "ok": true,
+       "kind": "state.deployment_version",
+       "detail": "running '4.1.3', expected '4.1.3'",
+       "expected": "4.1.3",
+       "observed": "4.1.3"
+      },
+      {
+       "ok": false,
+       "kind": "health.status",
+       "detail": "service is degraded",
+       "expected": "healthy",
+       "observed": "degraded"
+      },
+      {
+       "ok": false,
+       "kind": "metric.max",
+       "detail": "error_rate 0.32 vs max 0.05",
+       "expected": 0.05,
+       "observed": 0.32
+      },
+      {
+       "ok": true,
+       "kind": "metric.max",
+       "detail": "latency_p95 0.12 vs max 1.0",
+       "expected": 1.0,
+       "observed": 0.12
+      },
+      {
+       "ok": true,
+       "kind": "alerts.no_new_firing",
+       "detail": "0 alert(s) fired since verification started",
+       "expected": 0,
+       "observed": 0
+      }
+     ],
+     "errors": [],
+     "evidence_ids": [
+      "22d258fb-5701-488e-8fee-de4ed4f42eeb",
+      "69130495-ae85-4d75-a460-57fb7d4a32da"
+     ]
+    },
+    {
+     "sequence": 8,
+     "claim_attempt": 8,
+     "observed_at": "2026-09-26T17:49:07.402058+00:00",
+     "passed": false,
+     "conclusive": true,
+     "checks": [
+      {
+       "ok": true,
+       "kind": "state.deployment_version",
+       "detail": "running '4.1.3', expected '4.1.3'",
+       "expected": "4.1.3",
+       "observed": "4.1.3"
+      },
+      {
+       "ok": false,
+       "kind": "health.status",
+       "detail": "service is degraded",
+       "expected": "healthy",
+       "observed": "degraded"
+      },
+      {
+       "ok": false,
+       "kind": "metric.max",
+       "detail": "error_rate 0.32 vs max 0.05",
+       "expected": 0.05,
+       "observed": 0.32
+      },
+      {
+       "ok": true,
+       "kind": "metric.max",
+       "detail": "latency_p95 0.12 vs max 1.0",
+       "expected": 1.0,
+       "observed": 0.12
+      },
+      {
+       "ok": true,
+       "kind": "alerts.no_new_firing",
+       "detail": "0 alert(s) fired since verification started",
+       "expected": 0,
+       "observed": 0
+      }
+     ],
+     "errors": [],
+     "evidence_ids": [
+      "5c3a125b-b437-410f-a14f-ac1ac6753648",
+      "7168df90-4ef3-4a26-b640-628e226119ec"
+     ]
+    },
+    {
+     "sequence": 9,
+     "claim_attempt": 9,
+     "observed_at": "2026-09-26T17:49:07.506507+00:00",
+     "passed": false,
+     "conclusive": true,
+     "checks": [
+      {
+       "ok": true,
+       "kind": "state.deployment_version",
+       "detail": "running '4.1.3', expected '4.1.3'",
+       "expected": "4.1.3",
+       "observed": "4.1.3"
+      },
+      {
+       "ok": false,
+       "kind": "health.status",
+       "detail": "service is degraded",
+       "expected": "healthy",
+       "observed": "degraded"
+      },
+      {
+       "ok": false,
+       "kind": "metric.max",
+       "detail": "error_rate 0.32 vs max 0.05",
+       "expected": 0.05,
+       "observed": 0.32
+      },
+      {
+       "ok": true,
+       "kind": "metric.max",
+       "detail": "latency_p95 0.12 vs max 1.0",
+       "expected": 1.0,
+       "observed": 0.12
+      },
+      {
+       "ok": true,
+       "kind": "alerts.no_new_firing",
+       "detail": "0 alert(s) fired since verification started",
+       "expected": 0,
+       "observed": 0
+      }
+     ],
+     "errors": [],
+     "evidence_ids": [
+      "d47281d3-7699-4b2c-9bf0-cfaf5f54c1c7",
+      "385ff4d2-c7a3-42f4-ae3c-e3327b5c8ebd"
+     ]
+    },
+    {
+     "sequence": 10,
+     "claim_attempt": 10,
+     "observed_at": "2026-09-26T17:49:07.630330+00:00",
+     "passed": false,
+     "conclusive": true,
+     "checks": [
+      {
+       "ok": true,
+       "kind": "state.deployment_version",
+       "detail": "running '4.1.3', expected '4.1.3'",
+       "expected": "4.1.3",
+       "observed": "4.1.3"
+      },
+      {
+       "ok": false,
+       "kind": "health.status",
+       "detail": "service is degraded",
+       "expected": "healthy",
+       "observed": "degraded"
+      },
+      {
+       "ok": false,
+       "kind": "metric.max",
+       "detail": "error_rate 0.32 vs max 0.05",
+       "expected": 0.05,
+       "observed": 0.32
+      },
+      {
+       "ok": true,
+       "kind": "metric.max",
+       "detail": "latency_p95 0.12 vs max 1.0",
+       "expected": 1.0,
+       "observed": 0.12
+      },
+      {
+       "ok": true,
+       "kind": "alerts.no_new_firing",
+       "detail": "0 alert(s) fired since verification started",
+       "expected": 0,
+       "observed": 0
+      }
+     ],
+     "errors": [],
+     "evidence_ids": [
+      "1512e95d-cc95-4bd7-8720-e91ff116ec5e",
+      "37889f9e-5cba-48c7-87a7-dc1ee2954cdf"
+     ]
+    },
+    {
+     "sequence": 11,
+     "claim_attempt": 11,
+     "observed_at": "2026-09-26T17:49:07.732872+00:00",
+     "passed": false,
+     "conclusive": true,
+     "checks": [
+      {
+       "ok": true,
+       "kind": "state.deployment_version",
+       "detail": "running '4.1.3', expected '4.1.3'",
+       "expected": "4.1.3",
+       "observed": "4.1.3"
+      },
+      {
+       "ok": false,
+       "kind": "health.status",
+       "detail": "service is degraded",
+       "expected": "healthy",
+       "observed": "degraded"
+      },
+      {
+       "ok": false,
+       "kind": "metric.max",
+       "detail": "error_rate 0.32 vs max 0.05",
+       "expected": 0.05,
+       "observed": 0.32
+      },
+      {
+       "ok": true,
+       "kind": "metric.max",
+       "detail": "latency_p95 0.12 vs max 1.0",
+       "expected": 1.0,
+       "observed": 0.12
+      },
+      {
+       "ok": true,
+       "kind": "alerts.no_new_firing",
+       "detail": "0 alert(s) fired since verification started",
+       "expected": 0,
+       "observed": 0
+      }
+     ],
+     "errors": [],
+     "evidence_ids": [
+      "af389502-4579-4c03-9803-c163d431cfbf",
+      "7663ad4e-2b37-4c64-a599-afc1b269e533"
+     ]
+    },
+    {
+     "sequence": 12,
+     "claim_attempt": 12,
+     "observed_at": "2026-09-26T17:49:07.840878+00:00",
+     "passed": false,
+     "conclusive": true,
+     "checks": [
+      {
+       "ok": true,
+       "kind": "state.deployment_version",
+       "detail": "running '4.1.3', expected '4.1.3'",
+       "expected": "4.1.3",
+       "observed": "4.1.3"
+      },
+      {
+       "ok": false,
+       "kind": "health.status",
+       "detail": "service is degraded",
+       "expected": "healthy",
+       "observed": "degraded"
+      },
+      {
+       "ok": false,
+       "kind": "metric.max",
+       "detail": "error_rate 0.32 vs max 0.05",
+       "expected": 0.05,
+       "observed": 0.32
+      },
+      {
+       "ok": true,
+       "kind": "metric.max",
+       "detail": "latency_p95 0.12 vs max 1.0",
+       "expected": 1.0,
+       "observed": 0.12
+      },
+      {
+       "ok": true,
+       "kind": "alerts.no_new_firing",
+       "detail": "0 alert(s) fired since verification started",
+       "expected": 0,
+       "observed": 0
+      }
+     ],
+     "errors": [],
+     "evidence_ids": [
+      "1cf6c186-354b-43dc-8030-bf3468556428",
+      "3dcfffed-e8ee-4738-900d-454bfaa05982"
+     ]
+    },
+    {
+     "sequence": 13,
+     "claim_attempt": 13,
+     "observed_at": "2026-09-26T17:49:07.922667+00:00",
+     "passed": false,
+     "conclusive": true,
+     "checks": [
+      {
+       "ok": true,
+       "kind": "state.deployment_version",
+       "detail": "running '4.1.3', expected '4.1.3'",
+       "expected": "4.1.3",
+       "observed": "4.1.3"
+      },
+      {
+       "ok": false,
+       "kind": "health.status",
+       "detail": "service is degraded",
+       "expected": "healthy",
+       "observed": "degraded"
+      },
+      {
+       "ok": false,
+       "kind": "metric.max",
+       "detail": "error_rate 0.32 vs max 0.05",
+       "expected": 0.05,
+       "observed": 0.32
+      },
+      {
+       "ok": true,
+       "kind": "metric.max",
+       "detail": "latency_p95 0.12 vs max 1.0",
+       "expected": 1.0,
+       "observed": 0.12
+      },
+      {
+       "ok": true,
+       "kind": "alerts.no_new_firing",
+       "detail": "0 alert(s) fired since verification started",
+       "expected": 0,
+       "observed": 0
+      }
+     ],
+     "errors": [],
+     "evidence_ids": [
+      "49d5f2aa-eb85-4d5d-9105-80b08acdb9d6",
+      "1346ca4e-c498-4112-b6cc-6428a5b0808a"
+     ]
+    }
+   ],
+   "evidence": [
+    {
+     "evidence_id": "d8123724-a6fc-483b-bc72-0505d790fe46",
+     "poll_sequence": 0,
+     "role": "baseline",
+     "collected_at": "2026-09-26T17:49:06.267070+00:00"
+    },
+    {
+     "evidence_id": "a7c39eb4-d50e-4810-86db-badc538d2105",
+     "poll_sequence": 0,
+     "role": "baseline",
+     "collected_at": "2026-09-26T17:49:06.267070+00:00"
+    },
+    {
+     "evidence_id": "52fcdf51-c6ca-40a6-9bc3-d6e62b596732",
+     "poll_sequence": 1,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:06.648192+00:00"
+    },
+    {
+     "evidence_id": "df1fece9-06a8-45ec-8d62-23626de465c6",
+     "poll_sequence": 1,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:06.648192+00:00"
+    },
+    {
+     "evidence_id": "505ff7b1-98ae-4b02-a688-43966cc98791",
+     "poll_sequence": 2,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:06.765828+00:00"
+    },
+    {
+     "evidence_id": "5b018d7e-56fb-4ea6-aedf-36d4a8b3d111",
+     "poll_sequence": 2,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:06.765828+00:00"
+    },
+    {
+     "evidence_id": "759d4c36-3afa-4d33-9948-5c81ddb80504",
+     "poll_sequence": 3,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:06.863825+00:00"
+    },
+    {
+     "evidence_id": "e8487246-cac9-46fc-805e-95d47b7b34b4",
+     "poll_sequence": 3,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:06.863825+00:00"
+    },
+    {
+     "evidence_id": "470a1be3-17fd-43c5-9d99-245e176a5110",
+     "poll_sequence": 4,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:06.947440+00:00"
+    },
+    {
+     "evidence_id": "75692b5c-7715-4323-a4d0-c0f0bdb380eb",
+     "poll_sequence": 4,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:06.947440+00:00"
+    },
+    {
+     "evidence_id": "e8e541b0-c177-47b8-a970-85f8528e7885",
+     "poll_sequence": 5,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:07.054315+00:00"
+    },
+    {
+     "evidence_id": "904a1e4c-51de-4b6c-a0a9-c6f153f34ea4",
+     "poll_sequence": 5,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:07.054315+00:00"
+    },
+    {
+     "evidence_id": "f3778523-5635-4495-a412-7b37924ace34",
+     "poll_sequence": 6,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:07.175711+00:00"
+    },
+    {
+     "evidence_id": "555ebaeb-00ab-4a92-8742-12a8f79ba59c",
+     "poll_sequence": 6,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:07.175711+00:00"
+    },
+    {
+     "evidence_id": "22d258fb-5701-488e-8fee-de4ed4f42eeb",
+     "poll_sequence": 7,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:07.294422+00:00"
+    },
+    {
+     "evidence_id": "69130495-ae85-4d75-a460-57fb7d4a32da",
+     "poll_sequence": 7,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:07.294422+00:00"
+    },
+    {
+     "evidence_id": "5c3a125b-b437-410f-a14f-ac1ac6753648",
+     "poll_sequence": 8,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:07.402058+00:00"
+    },
+    {
+     "evidence_id": "7168df90-4ef3-4a26-b640-628e226119ec",
+     "poll_sequence": 8,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:07.402058+00:00"
+    },
+    {
+     "evidence_id": "d47281d3-7699-4b2c-9bf0-cfaf5f54c1c7",
+     "poll_sequence": 9,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:07.506507+00:00"
+    },
+    {
+     "evidence_id": "385ff4d2-c7a3-42f4-ae3c-e3327b5c8ebd",
+     "poll_sequence": 9,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:07.506507+00:00"
+    },
+    {
+     "evidence_id": "1512e95d-cc95-4bd7-8720-e91ff116ec5e",
+     "poll_sequence": 10,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:07.630330+00:00"
+    },
+    {
+     "evidence_id": "37889f9e-5cba-48c7-87a7-dc1ee2954cdf",
+     "poll_sequence": 10,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:07.630330+00:00"
+    },
+    {
+     "evidence_id": "af389502-4579-4c03-9803-c163d431cfbf",
+     "poll_sequence": 11,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:07.732872+00:00"
+    },
+    {
+     "evidence_id": "7663ad4e-2b37-4c64-a599-afc1b269e533",
+     "poll_sequence": 11,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:07.732872+00:00"
+    },
+    {
+     "evidence_id": "1cf6c186-354b-43dc-8030-bf3468556428",
+     "poll_sequence": 12,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:07.840878+00:00"
+    },
+    {
+     "evidence_id": "3dcfffed-e8ee-4738-900d-454bfaa05982",
+     "poll_sequence": 12,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:07.840878+00:00"
+    },
+    {
+     "evidence_id": "49d5f2aa-eb85-4d5d-9105-80b08acdb9d6",
+     "poll_sequence": 13,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:07.922667+00:00"
+    },
+    {
+     "evidence_id": "1346ca4e-c498-4112-b6cc-6428a5b0808a",
+     "poll_sequence": 13,
+     "role": "observation",
+     "collected_at": "2026-09-26T17:49:07.922667+00:00"
+    }
+   ]
+  }
+ ],
+ "evidence": [
+  {
+   "id": "2cab5fe5-7408-4635-a7c8-65c0816df7bd",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "abc6d51a-8d54-4173-891f-49563eaa63b1",
+   "content_hash": "sha256:98f935090fbfea87d85f33552d8c2782eb1232bff1da070f8934a76c06f66894",
+   "collected_at": "2026-09-26T17:49:05.670586+00:00"
+  },
+  {
+   "id": "b45560bf-9f45-4936-a028-0a8315ebe4fd",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "abc6d51a-8d54-4173-891f-49563eaa63b1",
+   "content_hash": "sha256:83a04230b7ecc8bd38a89aacd8c93fc68751c3918a7cbb7a2a36fd4557dc4a2c",
+   "collected_at": "2026-09-26T17:49:05.753971+00:00"
+  },
+  {
+   "id": "130770df-5758-4d60-b506-d4ef47fc4b57",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "abc6d51a-8d54-4173-891f-49563eaa63b1",
+   "content_hash": "sha256:1df2ca2187988172cfcc422c75ff1e84a276dede00fca65703ee3373289fad01",
+   "collected_at": "2026-09-26T17:49:05.814777+00:00"
+  },
+  {
+   "id": "71b1480d-e9ef-4ce5-a0b8-8ccf6b8c5bf1",
+   "evidence_type": "deployment",
+   "source_system": "deployment-registry",
+   "investigation_id": "abc6d51a-8d54-4173-891f-49563eaa63b1",
+   "content_hash": "sha256:591def1eb6f7ed84c3980f0f4d2fff45cc8d9fc69cc99f962cbbcab8b4163515",
+   "collected_at": "2026-09-26T17:49:05.877446+00:00"
+  },
+  {
+   "id": "66fdce5d-3091-4577-b9aa-c5bf68b47a4e",
+   "evidence_type": "configuration",
+   "source_system": "config-registry",
+   "investigation_id": "abc6d51a-8d54-4173-891f-49563eaa63b1",
+   "content_hash": "sha256:7daeea6a89c703b93ecc11ee15a3b56d27bed563b7822af498c1cb03f935a113",
+   "collected_at": "2026-09-26T17:49:05.906978+00:00"
+  },
+  {
+   "id": "3fc4b14d-9eff-466d-a005-445f734e585f",
+   "evidence_type": "log",
+   "source_system": "loki",
+   "investigation_id": "abc6d51a-8d54-4173-891f-49563eaa63b1",
+   "content_hash": "sha256:a6a7fc8099778cea1b8e09edca4cfc7420562f53fd0c7ac7fcda489249a5f85c",
+   "collected_at": "2026-09-26T17:49:05.942431+00:00"
+  },
+  {
+   "id": "f6033b7c-0639-4b03-82ff-cf9195731674",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "abc6d51a-8d54-4173-891f-49563eaa63b1",
+   "content_hash": "sha256:76db8374a43661dda5f32b1347c3dbac8d448df9877442da0c477951c80df5e9",
+   "collected_at": "2026-09-26T17:49:05.981958+00:00"
+  },
+  {
+   "id": "3220b5d0-f05e-4d68-a930-b236d3b8587d",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "abc6d51a-8d54-4173-891f-49563eaa63b1",
+   "content_hash": "sha256:2c3d40a25736549d4bf9621d645a8d2110768fbd20f8724f99c43c01fd1acd1e",
+   "collected_at": "2026-09-26T17:49:06.009489+00:00"
+  },
+  {
+   "id": "938dcebd-da0f-4188-b2a4-4f2bc6dd5530",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "abc6d51a-8d54-4173-891f-49563eaa63b1",
+   "content_hash": "sha256:89f1931f4eaa40ca23f3bd0837545e4d5f7932a0098042825e3353d3eecfe51e",
+   "collected_at": "2026-09-26T17:49:06.020532+00:00"
+  },
+  {
+   "id": "23c00b8d-11bf-445f-a53c-71e132ff8795",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "abc6d51a-8d54-4173-891f-49563eaa63b1",
+   "content_hash": "sha256:a54ae847200215e220d2c77db1d721cdb28fe806bf29a9a2701351c51739d97d",
+   "collected_at": "2026-09-26T17:49:06.046379+00:00"
+  },
+  {
+   "id": "77a038b8-0f58-45e4-a43d-15249e21857a",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "abc6d51a-8d54-4173-891f-49563eaa63b1",
+   "content_hash": "sha256:12535d5aab92190be96afd5aac27fb73de3fc9afc4d4e25480a9f231cc28cb04",
+   "collected_at": "2026-09-26T17:49:06.057619+00:00"
+  },
+  {
+   "id": "6aedbcd1-fd94-44b6-893c-e0fb88eacb0f",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": "abc6d51a-8d54-4173-891f-49563eaa63b1",
+   "content_hash": "sha256:38557e3d4a2a446bc211c968abd8d7935cd8ec3988649feb8b37b3e99a9d722e",
+   "collected_at": "2026-09-26T17:49:06.072114+00:00"
+  },
+  {
+   "id": "d8123724-a6fc-483b-bc72-0505d790fe46",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": null,
+   "content_hash": "sha256:21f48b78da4a0b3f41e6c67d8f6558e0d70bc8230a9f55ae3fb60dde6ac64050",
+   "collected_at": "2026-09-26T17:49:06.222934+00:00"
+  },
+  {
+   "id": "a7c39eb4-d50e-4810-86db-badc538d2105",
+   "evidence_type": "deployment",
+   "source_system": "deployment-registry",
+   "investigation_id": null,
+   "content_hash": "sha256:591def1eb6f7ed84c3980f0f4d2fff45cc8d9fc69cc99f962cbbcab8b4163515",
+   "collected_at": "2026-09-26T17:49:06.244661+00:00"
+  },
+  {
+   "id": "52fcdf51-c6ca-40a6-9bc3-d6e62b596732",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": null,
+   "content_hash": "sha256:f0473abe2c7e62fb2db5eedd7d8ef1b292e4f4aa0fdfadf6633ad541b9356c20",
+   "collected_at": "2026-09-26T17:49:06.620969+00:00"
+  },
+  {
+   "id": "df1fece9-06a8-45ec-8d62-23626de465c6",
+   "evidence_type": "deployment",
+   "source_system": "deployment-registry",
+   "investigation_id": null,
+   "content_hash": "sha256:a806212d5c89cf1d9b4af436a38669d693c373a1dd7526ca9f1a7d81cc0496bf",
+   "collected_at": "2026-09-26T17:49:06.635525+00:00"
+  },
+  {
+   "id": "505ff7b1-98ae-4b02-a688-43966cc98791",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": null,
+   "content_hash": "sha256:6fa52533cbd9c769a959277835425c2f52a6c62cb4a876f1a6c84933ba182178",
+   "collected_at": "2026-09-26T17:49:06.741294+00:00"
+  },
+  {
+   "id": "5b018d7e-56fb-4ea6-aedf-36d4a8b3d111",
+   "evidence_type": "deployment",
+   "source_system": "deployment-registry",
+   "investigation_id": null,
+   "content_hash": "sha256:a806212d5c89cf1d9b4af436a38669d693c373a1dd7526ca9f1a7d81cc0496bf",
+   "collected_at": "2026-09-26T17:49:06.756356+00:00"
+  },
+  {
+   "id": "759d4c36-3afa-4d33-9948-5c81ddb80504",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": null,
+   "content_hash": "sha256:e15ce755855a5e9e74af5b074f868652407e8b1c3289e64ae0412c4f9836c11a",
+   "collected_at": "2026-09-26T17:49:06.840884+00:00"
+  },
+  {
+   "id": "e8487246-cac9-46fc-805e-95d47b7b34b4",
+   "evidence_type": "deployment",
+   "source_system": "deployment-registry",
+   "investigation_id": null,
+   "content_hash": "sha256:a806212d5c89cf1d9b4af436a38669d693c373a1dd7526ca9f1a7d81cc0496bf",
+   "collected_at": "2026-09-26T17:49:06.855546+00:00"
+  },
+  {
+   "id": "470a1be3-17fd-43c5-9d99-245e176a5110",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": null,
+   "content_hash": "sha256:eb51714747d1649ed3f3042c01a4b635e8fd5107c2d0e110543d88b68d9c81b9",
+   "collected_at": "2026-09-26T17:49:06.933122+00:00"
+  },
+  {
+   "id": "75692b5c-7715-4323-a4d0-c0f0bdb380eb",
+   "evidence_type": "deployment",
+   "source_system": "deployment-registry",
+   "investigation_id": null,
+   "content_hash": "sha256:a806212d5c89cf1d9b4af436a38669d693c373a1dd7526ca9f1a7d81cc0496bf",
+   "collected_at": "2026-09-26T17:49:06.942770+00:00"
+  },
+  {
+   "id": "e8e541b0-c177-47b8-a970-85f8528e7885",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": null,
+   "content_hash": "sha256:b680fc87a3a13992ab463534a575323bbd90850f8326110643e31820bfc67498",
+   "collected_at": "2026-09-26T17:49:07.036024+00:00"
+  },
+  {
+   "id": "904a1e4c-51de-4b6c-a0a9-c6f153f34ea4",
+   "evidence_type": "deployment",
+   "source_system": "deployment-registry",
+   "investigation_id": null,
+   "content_hash": "sha256:a806212d5c89cf1d9b4af436a38669d693c373a1dd7526ca9f1a7d81cc0496bf",
+   "collected_at": "2026-09-26T17:49:07.046574+00:00"
+  },
+  {
+   "id": "f3778523-5635-4495-a412-7b37924ace34",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": null,
+   "content_hash": "sha256:7a46e254a9b3c9c7a91c706b01bbfdee905215de2fd909adc9b7a62751b86ea6",
+   "collected_at": "2026-09-26T17:49:07.155925+00:00"
+  },
+  {
+   "id": "555ebaeb-00ab-4a92-8742-12a8f79ba59c",
+   "evidence_type": "deployment",
+   "source_system": "deployment-registry",
+   "investigation_id": null,
+   "content_hash": "sha256:a806212d5c89cf1d9b4af436a38669d693c373a1dd7526ca9f1a7d81cc0496bf",
+   "collected_at": "2026-09-26T17:49:07.168166+00:00"
+  },
+  {
+   "id": "22d258fb-5701-488e-8fee-de4ed4f42eeb",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": null,
+   "content_hash": "sha256:5854086d17a61c75b2b07fccf8fa33ef2c07a0fb5bf4cb8587f8c3bfc6bcf53b",
+   "collected_at": "2026-09-26T17:49:07.254748+00:00"
+  },
+  {
+   "id": "69130495-ae85-4d75-a460-57fb7d4a32da",
+   "evidence_type": "deployment",
+   "source_system": "deployment-registry",
+   "investigation_id": null,
+   "content_hash": "sha256:a806212d5c89cf1d9b4af436a38669d693c373a1dd7526ca9f1a7d81cc0496bf",
+   "collected_at": "2026-09-26T17:49:07.281575+00:00"
+  },
+  {
+   "id": "5c3a125b-b437-410f-a14f-ac1ac6753648",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": null,
+   "content_hash": "sha256:bdbac67b49e48dc761e58d04d463041ad092e88eab20b0939a1714b1724fd106",
+   "collected_at": "2026-09-26T17:49:07.369103+00:00"
+  },
+  {
+   "id": "7168df90-4ef3-4a26-b640-628e226119ec",
+   "evidence_type": "deployment",
+   "source_system": "deployment-registry",
+   "investigation_id": null,
+   "content_hash": "sha256:a806212d5c89cf1d9b4af436a38669d693c373a1dd7526ca9f1a7d81cc0496bf",
+   "collected_at": "2026-09-26T17:49:07.389675+00:00"
+  },
+  {
+   "id": "d47281d3-7699-4b2c-9bf0-cfaf5f54c1c7",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": null,
+   "content_hash": "sha256:20f3864c4f8922378bd7a2c3e33bad125412b7b5b905bd77b5f4bb2082f0a07b",
+   "collected_at": "2026-09-26T17:49:07.484092+00:00"
+  },
+  {
+   "id": "385ff4d2-c7a3-42f4-ae3c-e3327b5c8ebd",
+   "evidence_type": "deployment",
+   "source_system": "deployment-registry",
+   "investigation_id": null,
+   "content_hash": "sha256:a806212d5c89cf1d9b4af436a38669d693c373a1dd7526ca9f1a7d81cc0496bf",
+   "collected_at": "2026-09-26T17:49:07.497669+00:00"
+  },
+  {
+   "id": "1512e95d-cc95-4bd7-8720-e91ff116ec5e",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": null,
+   "content_hash": "sha256:01781c0a1236f58f2f9b6d404a0ebf2ab5816a8386389a8e9589ee0851b5b208",
+   "collected_at": "2026-09-26T17:49:07.606694+00:00"
+  },
+  {
+   "id": "37889f9e-5cba-48c7-87a7-dc1ee2954cdf",
+   "evidence_type": "deployment",
+   "source_system": "deployment-registry",
+   "investigation_id": null,
+   "content_hash": "sha256:a806212d5c89cf1d9b4af436a38669d693c373a1dd7526ca9f1a7d81cc0496bf",
+   "collected_at": "2026-09-26T17:49:07.620656+00:00"
+  },
+  {
+   "id": "af389502-4579-4c03-9803-c163d431cfbf",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": null,
+   "content_hash": "sha256:b29c68ab6cfe303e75d866b2d773befafc3f791f8cbc9ddcf197916b8cf25174",
+   "collected_at": "2026-09-26T17:49:07.713012+00:00"
+  },
+  {
+   "id": "7663ad4e-2b37-4c64-a599-afc1b269e533",
+   "evidence_type": "deployment",
+   "source_system": "deployment-registry",
+   "investigation_id": null,
+   "content_hash": "sha256:a806212d5c89cf1d9b4af436a38669d693c373a1dd7526ca9f1a7d81cc0496bf",
+   "collected_at": "2026-09-26T17:49:07.725738+00:00"
+  },
+  {
+   "id": "1cf6c186-354b-43dc-8030-bf3468556428",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": null,
+   "content_hash": "sha256:401e2450a3f493403cfb6a0ea9c35b9d7b8794a864b17d6f1d41717b27afdb3b",
+   "collected_at": "2026-09-26T17:49:07.815854+00:00"
+  },
+  {
+   "id": "3dcfffed-e8ee-4738-900d-454bfaa05982",
+   "evidence_type": "deployment",
+   "source_system": "deployment-registry",
+   "investigation_id": null,
+   "content_hash": "sha256:a806212d5c89cf1d9b4af436a38669d693c373a1dd7526ca9f1a7d81cc0496bf",
+   "collected_at": "2026-09-26T17:49:07.832186+00:00"
+  },
+  {
+   "id": "49d5f2aa-eb85-4d5d-9105-80b08acdb9d6",
+   "evidence_type": "metric",
+   "source_system": "prometheus",
+   "investigation_id": null,
+   "content_hash": "sha256:f7d56966d1f56bf9a1a283fb90a3a4eb34c97bebea36312cb4b536f1e4f0cdcb",
+   "collected_at": "2026-09-26T17:49:07.911068+00:00"
+  },
+  {
+   "id": "1346ca4e-c498-4112-b6cc-6428a5b0808a",
+   "evidence_type": "deployment",
+   "source_system": "deployment-registry",
+   "investigation_id": null,
+   "content_hash": "sha256:a806212d5c89cf1d9b4af436a38669d693c373a1dd7526ca9f1a7d81cc0496bf",
+   "collected_at": "2026-09-26T17:49:07.918192+00:00"
+  }
+ ],
+ "timeline": [
+  {
+   "at": "2026-09-26T17:49:04.744457+00:00",
+   "kind": "alert",
+   "title": "HighErrorRate fired on checkout-service",
+   "ref": "a5c998ce-decd-4359-9aaa-338736c9fabb"
+  },
+  {
+   "at": "2026-09-26T17:49:05.083047+00:00",
+   "kind": "state",
+   "title": "TRIAGING \u2192 INVESTIGATING",
+   "detail": "investigation_started"
+  },
+  {
+   "at": "2026-09-26T17:49:05.128402Z",
+   "kind": "investigation",
+   "title": "Investigation attempt 1 started",
+   "detail": "heuristic-investigator"
+  },
+  {
+   "at": "2026-09-26T17:49:05.723839Z",
+   "kind": "evidence",
+   "title": "get_service_health: checkout-service is degraded at 2026-09-26T17:49:05.668218+00:00 (error_rate)",
+   "evidence_ids": [
+    "2cab5fe5-7408-4635-a7c8-65c0816df7bd"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:05.786779Z",
+   "kind": "evidence",
+   "title": "get_metric_window: error_rate for checkout-service: current=32.00%, window avg=11.15% vs baseline avg=0.20% (up)",
+   "evidence_ids": [
+    "b45560bf-9f45-4936-a028-0a8315ebe4fd"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:05.864049Z",
+   "kind": "evidence",
+   "title": "get_metric_window: latency_p95 for checkout-service: current=120.0ms, window avg=120.0ms vs baseline avg=120.0ms (flat)",
+   "evidence_ids": [
+    "130770df-5758-4d60-b506-d4ef47fc4b57"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:05.896539Z",
+   "kind": "evidence",
+   "title": "get_recent_deployments: checkout-service running 4.2.0 (from 4.1.3, deployed 2026-09-26T17:37:04.469447+00:00); 1 deployment(s) in window",
+   "evidence_ids": [
+    "71b1480d-e9ef-4ce5-a0b8-8ccf6b8c5bf1"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:05.926032Z",
+   "kind": "evidence",
+   "title": "get_config_changes: 0 config change(s) for checkout-service in window; effective: none on record",
+   "evidence_ids": [
+    "66fdce5d-3091-4577-b9aa-c5bf68b47a4e"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:05.964826Z",
+   "kind": "evidence",
+   "title": "get_logs: 60 matching log lines for checkout-service (60 ERROR/CRITICAL) in window; top: \"unhandled exception while serializing order: KeyError 'gift_wrap'\" x60",
+   "evidence_ids": [
+    "3fc4b14d-9eff-466d-a005-445f734e585f"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:06.003235Z",
+   "kind": "evidence",
+   "title": "get_service_health: payment-service is healthy at 2026-09-26T17:49:05.978314+00:00 (no threshold violations)",
+   "evidence_ids": [
+    "f6033b7c-0639-4b03-82ff-cf9195731674"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:06.016300Z",
+   "kind": "evidence",
+   "title": "get_service_health: inventory-service is healthy at 2026-09-26T17:49:06.008198+00:00 (no threshold violations)",
+   "evidence_ids": [
+    "3220b5d0-f05e-4d68-a930-b236d3b8587d"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:06.026833Z",
+   "kind": "evidence",
+   "title": "get_service_health: orders-db is healthy at 2026-09-26T17:49:06.019462+00:00 (no threshold violations)",
+   "evidence_ids": [
+    "938dcebd-da0f-4188-b2a4-4f2bc6dd5530"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:06.053483Z",
+   "kind": "evidence",
+   "title": "get_metric_window: request_rate for checkout-service: current=50 req/s, window avg=50 req/s vs baseline avg=50 req/s (flat)",
+   "evidence_ids": [
+    "23c00b8d-11bf-445f-a53c-71e132ff8795"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:06.067011Z",
+   "kind": "evidence",
+   "title": "get_metric_window: cpu_usage for checkout-service: current=30.00%, window avg=30.00% vs baseline avg=30.00% (flat)",
+   "evidence_ids": [
+    "77a038b8-0f58-45e4-a43d-15249e21857a"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:06.079251Z",
+   "kind": "evidence",
+   "title": "get_metric_window: memory_usage for checkout-service: current=120.0MB, window avg=120.0MB vs baseline avg=120.0MB (flat)",
+   "evidence_ids": [
+    "6aedbcd1-fd94-44b6-893c-e0fb88eacb0f"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:06.114817Z",
+   "kind": "hypothesis",
+   "title": "deploy_checkout-: new \u2192 SUPPORTED"
+  },
+  {
+   "at": "2026-09-26T17:49:06.114817Z",
+   "kind": "hypothesis",
+   "title": "config_checkout-: new \u2192 WEAKENED"
+  },
+  {
+   "at": "2026-09-26T17:49:06.114817Z",
+   "kind": "hypothesis",
+   "title": "dep_inventory-se: new \u2192 WEAKENED"
+  },
+  {
+   "at": "2026-09-26T17:49:06.114817Z",
+   "kind": "hypothesis",
+   "title": "dep_orders-db: new \u2192 WEAKENED"
+  },
+  {
+   "at": "2026-09-26T17:49:06.114817Z",
+   "kind": "hypothesis",
+   "title": "dep_payment-serv: new \u2192 WEAKENED"
+  },
+  {
+   "at": "2026-09-26T17:49:06.114817Z",
+   "kind": "hypothesis",
+   "title": "resource_cpu: new \u2192 WEAKENED"
+  },
+  {
+   "at": "2026-09-26T17:49:06.114817Z",
+   "kind": "hypothesis",
+   "title": "resource_memory: new \u2192 WEAKENED"
+  },
+  {
+   "at": "2026-09-26T17:49:06.114817Z",
+   "kind": "hypothesis",
+   "title": "traffic: new \u2192 WEAKENED"
+  },
+  {
+   "at": "2026-09-26T17:49:06.136957Z",
+   "kind": "rca",
+   "title": "RCA: deployment in checkout-service",
+   "ref": "223c984f-40d9-493e-be2a-794a422b1dfb"
+  },
+  {
+   "at": "2026-09-26T17:49:06.143958+00:00",
+   "kind": "state",
+   "title": "INVESTIGATING \u2192 RCA_READY",
+   "detail": "root_cause_selected"
+  },
+  {
+   "at": "2026-09-26T17:49:06.165104+00:00",
+   "kind": "remediation",
+   "title": "rollback_deployment: proposed",
+   "detail": "planner:remediation-planner",
+   "ref": "22e86884-dd0f-41ff-9baa-b71e5058300e"
+  },
+  {
+   "at": "2026-09-26T17:49:06.175176+00:00",
+   "kind": "remediation",
+   "title": "rollback_deployment: policy evaluated",
+   "detail": "policy-engine",
+   "ref": "22e86884-dd0f-41ff-9baa-b71e5058300e"
+  },
+  {
+   "at": "2026-09-26T17:49:06.183988+00:00",
+   "kind": "remediation",
+   "title": "rollback_deployment: approval requested",
+   "detail": "policy-engine",
+   "ref": "22e86884-dd0f-41ff-9baa-b71e5058300e"
+  },
+  {
+   "at": "2026-09-26T17:49:06.187200+00:00",
+   "kind": "state",
+   "title": "RCA_READY \u2192 AWAITING_APPROVAL",
+   "detail": "remediation_awaiting_approval"
+  },
+  {
+   "at": "2026-09-26T17:49:06.196106+00:00",
+   "kind": "remediation",
+   "title": "rollback_deployment: approved",
+   "detail": "human:eval-approver",
+   "ref": "22e86884-dd0f-41ff-9baa-b71e5058300e"
+  },
+  {
+   "at": "2026-09-26T17:49:06.199418+00:00",
+   "kind": "state",
+   "title": "AWAITING_APPROVAL \u2192 REMEDIATION_IN_PROGRESS",
+   "detail": "remediation_approved"
+  },
+  {
+   "at": "2026-09-26T17:49:06.205344+00:00",
+   "kind": "remediation",
+   "title": "rollback_deployment: execution started",
+   "detail": "worker:eval:demo-x",
+   "ref": "22e86884-dd0f-41ff-9baa-b71e5058300e"
+  },
+  {
+   "at": "2026-09-26T17:49:06.270651+00:00",
+   "kind": "remediation",
+   "title": "rollback_deployment: baseline captured",
+   "detail": "worker:eval:demo-x",
+   "ref": "22e86884-dd0f-41ff-9baa-b71e5058300e"
+  },
+  {
+   "at": "2026-09-26T17:49:06.296183+00:00",
+   "kind": "remediation",
+   "title": "rollback_deployment: executed",
+   "detail": "executor:scenario",
+   "ref": "22e86884-dd0f-41ff-9baa-b71e5058300e"
+  },
+  {
+   "at": "2026-09-26T17:49:06.317658+00:00",
+   "kind": "remediation",
+   "title": "rollback_deployment: verification requested",
+   "detail": "incident-core",
+   "ref": "22e86884-dd0f-41ff-9baa-b71e5058300e"
+  },
+  {
+   "at": "2026-09-26T17:49:06.328988+00:00",
+   "kind": "state",
+   "title": "REMEDIATION_IN_PROGRESS \u2192 VERIFYING",
+   "detail": "remediation_executed"
+  },
+  {
+   "at": "2026-09-26T17:49:06.648192+00:00",
+   "kind": "verification",
+   "title": "Observation 1: fail",
+   "evidence_ids": [
+    "52fcdf51-c6ca-40a6-9bc3-d6e62b596732",
+    "df1fece9-06a8-45ec-8d62-23626de465c6"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:06.765828+00:00",
+   "kind": "verification",
+   "title": "Observation 2: fail",
+   "evidence_ids": [
+    "505ff7b1-98ae-4b02-a688-43966cc98791",
+    "5b018d7e-56fb-4ea6-aedf-36d4a8b3d111"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:06.863825+00:00",
+   "kind": "verification",
+   "title": "Observation 3: fail",
+   "evidence_ids": [
+    "759d4c36-3afa-4d33-9948-5c81ddb80504",
+    "e8487246-cac9-46fc-805e-95d47b7b34b4"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:06.947440+00:00",
+   "kind": "verification",
+   "title": "Observation 4: fail",
+   "evidence_ids": [
+    "470a1be3-17fd-43c5-9d99-245e176a5110",
+    "75692b5c-7715-4323-a4d0-c0f0bdb380eb"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:07.054315+00:00",
+   "kind": "verification",
+   "title": "Observation 5: fail",
+   "evidence_ids": [
+    "e8e541b0-c177-47b8-a970-85f8528e7885",
+    "904a1e4c-51de-4b6c-a0a9-c6f153f34ea4"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:07.175711+00:00",
+   "kind": "verification",
+   "title": "Observation 6: fail",
+   "evidence_ids": [
+    "f3778523-5635-4495-a412-7b37924ace34",
+    "555ebaeb-00ab-4a92-8742-12a8f79ba59c"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:07.294422+00:00",
+   "kind": "verification",
+   "title": "Observation 7: fail",
+   "evidence_ids": [
+    "22d258fb-5701-488e-8fee-de4ed4f42eeb",
+    "69130495-ae85-4d75-a460-57fb7d4a32da"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:07.402058+00:00",
+   "kind": "verification",
+   "title": "Observation 8: fail",
+   "evidence_ids": [
+    "5c3a125b-b437-410f-a14f-ac1ac6753648",
+    "7168df90-4ef3-4a26-b640-628e226119ec"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:07.506507+00:00",
+   "kind": "verification",
+   "title": "Observation 9: fail",
+   "evidence_ids": [
+    "d47281d3-7699-4b2c-9bf0-cfaf5f54c1c7",
+    "385ff4d2-c7a3-42f4-ae3c-e3327b5c8ebd"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:07.630330+00:00",
+   "kind": "verification",
+   "title": "Observation 10: fail",
+   "evidence_ids": [
+    "1512e95d-cc95-4bd7-8720-e91ff116ec5e",
+    "37889f9e-5cba-48c7-87a7-dc1ee2954cdf"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:07.732872+00:00",
+   "kind": "verification",
+   "title": "Observation 11: fail",
+   "evidence_ids": [
+    "af389502-4579-4c03-9803-c163d431cfbf",
+    "7663ad4e-2b37-4c64-a599-afc1b269e533"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:07.840878+00:00",
+   "kind": "verification",
+   "title": "Observation 12: fail",
+   "evidence_ids": [
+    "1cf6c186-354b-43dc-8030-bf3468556428",
+    "3dcfffed-e8ee-4738-900d-454bfaa05982"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:07.922667+00:00",
+   "kind": "verification",
+   "title": "Observation 13: fail",
+   "evidence_ids": [
+    "49d5f2aa-eb85-4d5d-9105-80b08acdb9d6",
+    "1346ca4e-c498-4112-b6cc-6428a5b0808a"
+   ]
+  },
+  {
+   "at": "2026-09-26T17:49:07.925952Z",
+   "kind": "verification",
+   "title": "Verification FAILED",
+   "detail": "0/3 consecutive successful observations when the window closed (service is degraded; error_rate 0.32 vs max 0.05)",
+   "ref": "db8cc6a9-d4f6-445c-a11e-e0e5037ef351"
+  },
+  {
+   "at": "2026-09-26T17:49:07.929724+00:00",
+   "kind": "state",
+   "title": "VERIFYING \u2192 VERIFICATION_FAILED",
+   "detail": "verification_failed"
+  }
+ ]
+}

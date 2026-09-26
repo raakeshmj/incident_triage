@@ -1,0 +1,546 @@
+// Official Carbon (DESIGN.md: "IBM's marketing chrome IS Carbon"), White theme.
+@use "@carbon/react";
+@use "@carbon/react/scss/theme" as *;
+@use "@carbon/react/scss/spacing" as *;
+@use "@carbon/react/scss/type" as *;
+@use "@carbon/react/scss/breakpoint" as *;
+
+// Project layout on Carbon tokens only. Square corners, 1px hairlines, no
+// shadows, no gradients; color only for meaning (see docs/frontend/design-workflow.md).
+
+body {
+  background: $background;
+}
+
+.ii-content {
+  padding: 0 !important;
+}
+
+.ii-page {
+  padding: $spacing-06 $spacing-07 $spacing-09;
+  max-width: 1584px;
+
+  @include breakpoint-down(md) {
+    padding: $spacing-05 $spacing-05 $spacing-07;
+  }
+}
+
+.ii-error-text {
+  color: $text-error;
+}
+
+.ii-lifecycle-compact {
+  margin: $spacing-05 0;
+  padding: $spacing-03 $spacing-04;
+  border-left: 3px solid $support-info;
+  background: $layer-01;
+}
+
+.ii-title {
+  @include type-style("heading-05");
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.ii-lede {
+  margin-top: $spacing-02;
+}
+
+.ii-muted {
+  color: $text-secondary;
+}
+
+.ii-subtle {
+  color: $text-helper;
+}
+
+.ii-mono {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.8125rem;
+  letter-spacing: 0.32px;
+}
+
+.ii-break {
+  overflow-wrap: anywhere;
+}
+
+.ii-empty {
+  color: $text-secondary;
+  padding: $spacing-05 0;
+}
+
+.ii-error {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  margin: $spacing-05 0;
+  align-items: flex-start;
+}
+
+// --- status tag: neutral chip, colored square ---------------------------------------
+.ii-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-02;
+  min-height: 1.5rem;
+  padding: 0 $spacing-03;
+  background: $layer-accent-01;
+  color: $text-primary;
+  @include type-style("label-01");
+  white-space: nowrap;
+}
+
+.ii-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  background: $icon-secondary;
+}
+
+.ii-tone-red .ii-dot {
+  background: $support-error;
+}
+.ii-tone-yellow .ii-dot {
+  background: $support-warning;
+  outline: 1px solid #8e6a00; // yellow alone fails non-text contrast on gray
+}
+.ii-tone-green .ii-dot {
+  background: $support-success;
+}
+.ii-tone-blue .ii-dot {
+  background: $support-info;
+}
+.ii-tone-gray .ii-dot {
+  background: $icon-secondary;
+}
+
+.ii-stack {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+}
+
+// --- panels ------------------------------------------------------------------------
+.ii-panel {
+  border: 1px solid $border-subtle-01;
+  background: $layer-01;
+  min-width: 0;
+
+  > header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: $spacing-04;
+    padding: $spacing-04 $spacing-05;
+    border-bottom: 1px solid $border-subtle-01;
+  }
+
+  h2 {
+    @include type-style("heading-compact-01");
+  }
+
+  .ii-panel-body {
+    padding: $spacing-04 $spacing-05;
+  }
+}
+
+.ii-subhead {
+  @include type-style("heading-compact-01");
+  margin: $spacing-05 0 $spacing-03;
+}
+
+.ii-kv {
+  display: grid;
+  grid-template-columns: minmax(8rem, 11rem) minmax(0, 1fr);
+  gap: $spacing-03 $spacing-05;
+  @include type-style("body-compact-01");
+
+  dt {
+    color: $text-secondary;
+  }
+
+  .ii-kv-row {
+    display: contents;
+  }
+
+  @include breakpoint-down(md) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: $spacing-01 0;
+
+    dd {
+      margin-bottom: $spacing-03;
+    }
+  }
+}
+
+.ii-inner-table {
+  margin-top: $spacing-04;
+}
+
+// --- list -----------------------------------------------------------------------------
+.ii-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(10rem, 14rem));
+  gap: $spacing-05;
+  margin: $spacing-06 0;
+
+  @include breakpoint-down(md) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.ii-table {
+  overflow-x: auto;
+}
+
+.ii-stacked {
+  border-top: 1px solid $border-subtle-01;
+
+  li {
+    border-bottom: 1px solid $border-subtle-01;
+  }
+
+  .ii-stacked-link {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-02;
+    padding: $spacing-04 $spacing-03;
+    color: $text-primary;
+    text-decoration: none;
+    min-height: 3rem;
+
+    &:hover {
+      background: $layer-hover-01;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $focus;
+      outline-offset: -2px;
+    }
+  }
+
+  .ii-stacked-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: $spacing-03;
+  }
+}
+
+// --- detail ------------------------------------------------------------------------
+.ii-breadcrumb {
+  color: $text-secondary;
+  margin-bottom: $spacing-03;
+
+  a {
+    color: $link-primary;
+  }
+}
+
+.ii-detail-head {
+  padding-bottom: $spacing-05;
+  border-bottom: 1px solid $border-subtle-01;
+}
+
+.ii-detail-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: $spacing-05;
+  flex-wrap: wrap;
+}
+
+.ii-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03 $spacing-07;
+  margin-top: $spacing-04;
+
+  dt {
+    @include type-style("label-01");
+    color: $text-secondary;
+  }
+
+  dd {
+    @include type-style("body-compact-01");
+  }
+}
+
+.ii-lifecycle {
+  margin: $spacing-06 0;
+  overflow-x: auto;
+}
+
+.ii-action {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: $spacing-05;
+  flex-wrap: wrap;
+  padding: $spacing-05;
+  margin-bottom: $spacing-06;
+  border: 1px solid $border-subtle-01;
+  border-left: 3px solid $support-warning;
+  background: $layer-01;
+
+  h2 {
+    @include type-style("heading-compact-02");
+    margin-bottom: $spacing-02;
+  }
+}
+
+.ii-modal-intro {
+  margin-bottom: $spacing-05;
+}
+
+.ii-form {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  margin-top: $spacing-06;
+}
+
+.ii-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: $spacing-05;
+  align-items: start;
+
+  @include breakpoint-down(lg) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ii-col {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  min-width: 0;
+}
+
+.ii-timeline {
+  li {
+    display: grid;
+    grid-template-columns: 4.5rem 0.75rem minmax(0, 1fr);
+    gap: $spacing-03;
+    padding: $spacing-02 0;
+    @include type-style("body-compact-01");
+  }
+
+  time {
+    color: $text-secondary;
+  }
+
+  .ii-tl-rule {
+    width: 2px;
+    background: $border-subtle-01;
+    justify-self: center;
+  }
+
+  .ii-tl-kind {
+    color: $text-secondary;
+    margin-right: $spacing-02;
+  }
+
+  .ii-tl-rca .ii-tl-rule,
+  .ii-tl-verification .ii-tl-rule {
+    background: $support-info;
+  }
+
+  .ii-tl-state .ii-tl-kind {
+    color: $text-primary;
+    font-weight: 600;
+  }
+}
+
+.ii-evidence-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: $spacing-02 $spacing-03;
+}
+
+.ii-evidence-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  min-height: 1.5rem;
+  color: $link-primary;
+  cursor: pointer;
+  text-decoration: underline;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.8125rem;
+
+  &:hover {
+    color: $link-primary-hover;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+    outline-offset: 1px;
+  }
+}
+
+.ii-evidence-summary {
+  margin-bottom: $spacing-05;
+}
+
+.ii-pre {
+  background: $layer-02;
+  padding: $spacing-04;
+  max-height: 22rem;
+  overflow: auto;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ii-rca-cause {
+  @include type-style("heading-compact-02");
+  margin-bottom: $spacing-03;
+}
+
+.ii-attempt + .ii-attempt {
+  margin-top: $spacing-07;
+  padding-top: $spacing-05;
+  border-top: 1px solid $border-subtle-01;
+}
+
+.ii-attempt-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+  align-items: center;
+}
+
+.ii-details {
+  margin-top: $spacing-05;
+
+  summary {
+    cursor: pointer;
+    color: $link-primary;
+    min-height: 1.5rem;
+  }
+}
+
+.ii-tools {
+  margin-top: $spacing-03;
+
+  li {
+    padding: $spacing-02 0;
+    border-bottom: 1px solid $border-subtle-01;
+    @include type-style("body-compact-01");
+    overflow-wrap: anywhere;
+  }
+}
+
+.ii-denied {
+  margin-top: $spacing-02;
+  color: $text-error;
+}
+
+// --- operations ------------------------------------------------------------------------
+.ii-tiles {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border: 1px solid $border-subtle-01;
+  margin: $spacing-06 0;
+  background: $layer-01;
+
+  > div {
+    padding: $spacing-04 $spacing-05;
+    border-right: 1px solid $border-subtle-01;
+  }
+
+  dt {
+    @include type-style("label-01");
+    color: $text-secondary;
+  }
+
+  dd {
+    @include type-style("heading-05");
+    font-weight: 300;
+  }
+
+  @include breakpoint-down(lg) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    > div {
+      border-bottom: 1px solid $border-subtle-01;
+    }
+  }
+
+  @include breakpoint-down(md) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.ii-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: $spacing-05;
+  margin-bottom: $spacing-05;
+
+  @include breakpoint-down(lg) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ii-status-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03 $spacing-06;
+
+  a {
+    display: inline-flex;
+    gap: $spacing-03;
+    align-items: center;
+    text-decoration: none;
+    color: $text-primary;
+    min-height: 1.5rem;
+  }
+}
+
+#metrics {
+  margin-top: $spacing-05;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+// programmatic focus target only (tabIndex -1): no ring on a click-opened
+// dialog, a ring for keyboard focus
+.ii-focus-target:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.ii-scroll {
+  overflow-x: auto;
+
+  .cds--data-table-content {
+    overflow: visible;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $focus;
+    outline-offset: -2px;
+  }
+}
+
+html {
+  touch-action: manipulation;
+}
+
+.ii-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+// long timelines (a failed verification adds one row per poll): let the
+// browser skip rendering off-screen rows
+.ii-timeline > li {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 2.5rem;
+}

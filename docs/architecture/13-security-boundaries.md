@@ -180,3 +180,26 @@ the model's context via evidence. Mitigations:
   real identity provider.)
 - Kill switches (global / per service) deny every new proposal and stop
   every execution that hasn't started.
+
+## Phase 8: verification, read API and dashboard
+
+Reviewed at the end of Phase 8:
+
+| Property | How it holds | Tested by |
+|---|---|---|
+| The LLM cannot execute anything | no tool or import path from agents/tools to planner, runner, executor or verification (boundary tests) | `tests/unit/test_boundaries.py` |
+| Policy cannot be bypassed | every proposal, including planner and operator ones, goes through `propose()` → policy; DENY escalates | integration remediation tests |
+| Approval binds the exact proposal | hash + policy decision id required; mismatch / stale decision refused | integration + dashboard tests (the UI sends both) |
+| Kill switches stop execution | checked at propose and before execute | integration remediation tests |
+| Verification never trusts the executor | verdict computed only from evidence-service observations; state checks re-read the system; RESOLVED only from PASSED | unit verification rules, integration verification, lifecycle e2e |
+| Stale verdicts change nothing | lease + `claim_attempt` fencing; staleness guard on finalize | integration verification tests |
+| Dashboard mutations need the operator token | the only mutation is the approval POST, behind `require_operator`; the token lives in `sessionStorage` only, never in URLs or logs | API tests, `IncidentDetail.test.tsx`, Playwright approval spec |
+| The dashboard has no DB access or domain logic | it calls `/api/v1` only; states/verdicts are rendered as returned | code layout, fixtures captured from the real API |
+| Credentials never logged or recorded | recording redaction (Phase 6); fixtures and screenshots scanned for keys | recording security tests |
+| Replay is inert | reads recordings; no executor, simulator or network | replay tests |
+
+Known limitations: read endpoints (`/api/v1/incidents`, `/detail`,
+`/overview`, `/metrics`, `/evidence/{id}`) are unauthenticated, like the
+earlier read endpoints — acceptable for the local stack only; a deployment
+needs an identity provider and per-role reads. The operator token is a
+single shared secret standing in for real identity.

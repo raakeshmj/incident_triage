@@ -62,6 +62,15 @@ also caches the stable prompt prefix (ADR-0022) and makes the runtime
 provider/model a placeholder configuration. Deferred: any live-provider
 run (no credential yet), LLM-as-judge and CI gating on eval thresholds.
 
+Build session "Phase 7" delivers this document's Phase 3 (policy engine
+and action catalog) and the approval + execution parts of Phase 4, against
+the simulator only: deterministic RCA-driven planning, a 5-action catalog,
+a pure policy engine with stored contexts, human approval bound to the
+exact proposal, a leased / reconciled / bounded executor, kill switches and
+an immutable remediation timeline (`architecture/09-...md`, "Phase 7: as
+built"; ADR-0024). No automatic execution; verification is requested but
+not performed; no approval UI (API only).
+
 ## Phase 0 — Foundations (no services yet)
 
 - `libs/schemas`: Pydantic models for the domain entities, event envelope,

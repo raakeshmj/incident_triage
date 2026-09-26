@@ -70,14 +70,20 @@ def test_tempo_search_then_lookup_then_the_same_trace_in_loki(stack_urls):
         end=end,
         mode="recent",
         min_duration_ms=None,
-        limit=3,
+        limit=20,
     )
     assert search.result_count > 0
-    trace_id = search.normalized_payload["traces"][0]["trace_id"]
-    assert len(trace_id) == 32
-
-    trace = tempo.get_trace(trace_id=trace_id)
-    summary = trace.normalized_payload
+    # The recent window can hold fast-fail 500s from a chaos test that just
+    # ran (single-span, no downstream call); the shape asserted below is a
+    # healthy request's, so take the newest trace without errors.
+    summary: dict = {}
+    trace_id = ""
+    for candidate in search.normalized_payload["traces"]:
+        found = tempo.get_trace(trace_id=candidate["trace_id"]).normalized_payload
+        if found["found"] and found["error_span_count"] == 0 and found["span_count"] > 1:
+            summary, trace_id = found, candidate["trace_id"]
+            break
+    assert len(trace_id) == 32, "no healthy checkout trace in the last 10 minutes"
     assert summary["found"]
     assert summary["root"]["service"] == "checkout-service"
     assert any(

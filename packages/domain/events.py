@@ -141,3 +141,58 @@ class InvestigationFailedPayload(BaseModel):
     incident_id: uuid.UUID
     outcome: str
     reason_code: str
+
+
+# --- Phase 7: remediation ------------------------------------------------------------
+
+EVENT_TYPE_REMEDIATION_PROPOSED = "RemediationProposed"
+EVENT_TYPE_REMEDIATION_POLICY_EVALUATED = "RemediationPolicyEvaluated"
+EVENT_TYPE_REMEDIATION_APPROVAL_REQUESTED = "RemediationApprovalRequested"
+EVENT_TYPE_REMEDIATION_APPROVED = "RemediationApproved"
+EVENT_TYPE_REMEDIATION_REJECTED = "RemediationRejected"
+EVENT_TYPE_REMEDIATION_STARTED = "RemediationStarted"
+EVENT_TYPE_REMEDIATION_EXECUTED = "RemediationExecuted"
+EVENT_TYPE_REMEDIATION_FAILED = "RemediationFailed"
+EVENT_TYPE_REMEDIATION_CANCELLED = "RemediationCancelled"
+EVENT_TYPE_VERIFICATION_REQUESTED = "VerificationRequested"
+EVENT_TYPE_KILL_SWITCH_CHANGED = "KillSwitchChanged"
+AGGREGATE_TYPE_REMEDIATION = "Remediation"
+AGGREGATE_TYPE_KILL_SWITCH = "KillSwitch"
+
+
+class RemediationEventPayload(BaseModel):
+    """One shape for every remediation lifecycle event: identity, where it
+    is now, and which policy/catalog versions governed it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    remediation_id: uuid.UUID
+    incident_id: uuid.UUID
+    action_id: str
+    catalog_version: str
+    status: str
+    proposal_hash: str
+    actor: str
+    policy_version: str | None = None
+    policy_decision: str | None = None
+    detail: dict = {}
+
+
+class VerificationRequestedPayload(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    verification_id: uuid.UUID
+    remediation_id: uuid.UUID
+    incident_id: uuid.UUID
+    action_id: str
+    target_service: str
+    requirements: list[dict]
+
+
+class KillSwitchChangedPayload(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    scope: str
+    engaged: bool
+    actor: str
+    reason: str | None = None

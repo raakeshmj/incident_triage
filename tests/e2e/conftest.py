@@ -44,6 +44,12 @@ def _clean_tables(engine: Engine) -> Iterator[None]:
             conn.execute(
                 text(
                     "TRUNCATE TABLE "
+                    "incident_core.remediation_timeline, "
+                    "incident_core.remediation_executions, "
+                    "incident_core.remediation_approvals, "
+                    "incident_core.remediation_policy_decisions, "
+                    "incident_core.remediations, "
+                    "incident_core.kill_switches, "
                     "incident_core.rca_reports, "
                     "incident_core.hypothesis_evidence_links, "
                     "incident_core.hypotheses, "
@@ -102,3 +108,20 @@ def api_server(engine: Engine) -> Iterator[None]:
     yield
     server.should_exit = True
     thread.join(timeout=10)
+
+
+@pytest.fixture
+def quiet_checkout() -> None:
+    """Live chaos tests share one stack: wait until no alert is active for
+    checkout-service, so this test's fault starts a *new* firing episode
+    (Alertmanager doesn't re-notify an episode that is already firing)."""
+    deadline = time.monotonic() + 300
+    while time.monotonic() < deadline:
+        try:
+            alerts = httpx.get("http://localhost:9093/api/v2/alerts", timeout=3).json()
+        except (httpx.HTTPError, ValueError):
+            return  # no Alertmanager: the test's own readiness check will skip
+        if not any(a["labels"].get("service") == "checkout-service" for a in alerts):
+            return
+        time.sleep(5)
+    pytest.fail("checkout-service alerts still active after 300s; the stack isn't quiet")

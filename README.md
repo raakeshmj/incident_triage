@@ -2,12 +2,13 @@
 
 Autonomous Production Incident Triage & Response platform.
 
-**Status: Phases 1-6 implemented.** A working vertical slice with a
+**Status: Phases 1-7 implemented.** A working vertical slice with a
 production-shaped event transport, a real correlation engine, a realistic
 local production environment feeding it real alerts, (Phase 4) the trusted
 evidence and investigation substrate, and (Phase 5) a bounded, read-only,
 evidence-grounded investigation agent, and (Phase 6) an evaluation and
-replay framework for it:
+replay framework for it, and (Phase 7) human-approved, policy-gated,
+bounded remediation against the simulator:
 
 ```
 checkout/payment/inventory services (simulated, chaos-injectable)
@@ -35,6 +36,10 @@ incident TRIAGING (debounce elapsed) -> INVESTIGATING -> InvestigationStarted
 
 golden scenario -> real evidence path (canned backends) -> engine -> recording
     -> structured grade -> eval-results/ ; recording -> replay (inspect | re-execute)
+
+RCA_READY -> planner (deterministic) -> proposal -> policy (pure) -> AWAITING_APPROVAL
+    -> human approval (API, bound to the exact proposal) -> runner -> catalog action
+    on the simulator (idempotent, bounded, reconciled) -> EXECUTED -> VERIFYING
 ```
 
 See [`docs/`](docs/) for the full architecture,
@@ -52,9 +57,12 @@ alert resolution, and
 (+ ADR-0020/ADR-0021/ADR-0022) for Phase 5's investigation engine and
 prompt caching, and
 [`docs/architecture/11-evaluation-architecture.md`](docs/architecture/11-evaluation-architecture.md)
-(+ ADR-0023) for Phase 6's evaluation and replay. Nothing beyond this scope
-is implemented yet: no policy engine, no remediation, no Kubernetes, no
-Incident Intelligence dashboard.
+(+ ADR-0023) for Phase 6's evaluation and replay, and
+[`docs/architecture/09-remediation-policy-boundaries.md`](docs/architecture/09-remediation-policy-boundaries.md)
+("Phase 7: as built", + ADR-0024) for Phase 7's remediation. Nothing beyond
+this scope is implemented yet: no automatic remediation, no verification
+of remediation outcomes, no Kubernetes, no Incident Intelligence dashboard
+or approval UI.
 
 ## Repository layout
 
@@ -79,7 +87,8 @@ packages/
   tools/        investigation tool contracts over evidence-service (Phase 4)
   agents/       the investigation engine, model abstraction, Claude adapter,
                 read-only toolset, prompts (Phase 5)
-  policy/       reserved (Phase 3 -- policy engine)
+  policy/       Phase 7: the pure policy engine
+  remediation/  Phase 7: action catalog, planner, executor boundary, runner
   evaluation/   Phase 6: golden-scenario worlds, recordings, replay, grading,
                 harness and the `evaluate` / `replay` CLI
 
@@ -265,6 +274,24 @@ to `eval-results/`. `--mode live` uses the configured
 `anthropic` / `claude-haiku-4-5`), needs that provider's credential and
 `--yes`, and is never part of `make test`. Live runs are deferred until a
 credential is available.
+
+## Phase 7: remediation
+
+```bash
+make run-api                     # operator endpoints need OPERATOR_API_TOKEN + REMEDIATION_APPROVERS
+make run-remediation-worker      # plans on InvestigationCompleted, executes on RemediationApproved
+curl -s localhost:8000/api/v1/incidents/<id>/remediations      # proposal, status, proposal_hash
+curl -s localhost:8000/api/v1/remediations/<rid>               # decisions (with context), executions, timeline
+curl -s -X POST localhost:8000/api/v1/remediations/<rid>/approval \
+  -H "Authorization: Bearer $OPERATOR_API_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"approver": "alice", "decision": "approve", "proposal_hash": "<hash>", "policy_decision_id": "<id>"}'
+curl -s -X PUT localhost:8000/api/v1/kill-switches/global \
+  -H "Authorization: Bearer $OPERATOR_API_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"engaged": true, "actor": "carol", "reason": "freeze"}'
+```
+
+Every remediation needs a human: policy never allows automatic execution.
+The executor acts only on the simulated environment.
 
 ## Tests
 

@@ -41,3 +41,24 @@ class InvestigationNotFoundError(DomainError):
 class LeaseLostError(DomainError):
     """This worker no longer owns the investigation (its lease expired and
     another worker claimed it). The caller must stop writing immediately."""
+
+
+class RemediationNotFoundError(DomainError):
+    pass
+
+
+class RemediationStateError(DomainError):
+    """The command isn't valid for the remediation's current status."""
+
+
+class ApprovalMismatchError(DomainError):
+    """An approval did not bind to the remediation's current proposal hash
+    and policy decision (the proposal changed, or the approver saw a stale one)."""
+
+
+class ApproverNotAuthorizedError(DomainError):
+    """The approver lacks a role the policy decision requires."""
+
+
+class InvalidProposalError(DomainError):
+    """A proposal failed validation before policy could evaluate it."""

@@ -43,7 +43,7 @@ def live_stack(stack_urls):
 
 
 def test_live_incident_is_investigated_through_the_real_evidence_service(
-    live_stack, api_server, session_factory
+    live_stack, quiet_checkout, api_server, session_factory
 ):
     started = datetime.now(UTC)
     chaos.main(["stop", "--service", SERVICE])

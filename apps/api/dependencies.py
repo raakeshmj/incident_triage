@@ -12,7 +12,9 @@ from __future__ import annotations
 from functools import lru_cache
 
 from apps.api.config import get_settings
+from packages.evidence.scope import ServiceCatalog
 from packages.incident.db.base import make_engine, make_session_factory
+from packages.incident.remediations import RemediationCoreService
 from packages.incident.service import IncidentCoreService
 
 
@@ -22,3 +24,13 @@ def get_incident_core_service() -> IncidentCoreService:
     engine = make_engine(settings.incident_core_database_url)
     session_factory = make_session_factory(engine)
     return IncidentCoreService(session_factory)
+
+
+@lru_cache
+def get_remediation_service() -> RemediationCoreService:
+    settings = get_settings()
+    engine = make_engine(settings.incident_core_database_url)
+    return RemediationCoreService(
+        make_session_factory(engine),
+        topology=ServiceCatalog.load(settings.evidence_service_catalog_path),
+    )

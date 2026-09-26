@@ -191,3 +191,22 @@ is the one exception, and it's deliberate — see
 - If the incident has already left `INVESTIGATING` when an investigation
   finishes, the result is recorded but the incident is not moved.
   Remediation states are untouched by Phase 5.
+
+## Phase 7: the remediation edges are live
+
+| From | To | Trigger |
+|---|---|---|
+| RCA_READY | AWAITING_APPROVAL | a proposal passes policy (always REQUIRE_APPROVAL in Phase 7) |
+| RCA_READY | ESCALATED | policy denies the proposal |
+| AWAITING_APPROVAL | REMEDIATION_IN_PROGRESS | a human with an eligible role approves the exact proposal |
+| AWAITING_APPROVAL | ESCALATED | rejection, or the approval timeout (never auto-approves) |
+| AWAITING_APPROVAL | RCA_READY | the proposal is withdrawn or superseded (new edge) |
+| REMEDIATION_IN_PROGRESS | VERIFYING | the execution succeeded; `VerificationRequested` emitted |
+| REMEDIATION_IN_PROGRESS | ESCALATED | execution failed, or a kill switch stopped it before it ran |
+
+The `RCA_READY -> REMEDIATION_IN_PROGRESS` (pre-approved ALLOW) edge is not
+implemented: there is no automatic execution. Verification (VERIFYING ->
+RESOLVED / VERIFICATION_FAILED) is a later phase; incidents wait in
+VERIFYING. Remediation state lives on the `remediations` aggregate; the
+incident moves only along these edges, and only if it is still where the
+remediation expects it (a human's ESCALATED is never overwritten).

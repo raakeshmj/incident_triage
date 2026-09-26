@@ -1,6 +1,6 @@
 .PHONY: install fmt lint typecheck test test-unit test-integration test-e2e test-stack \
         infra-up infra-up-full infra-down infra-logs migrate migrate-down run-api run-worker \
-        run-consumer run-evidence run-investigation-worker investigate-live eval-db eval-migrate eval eval-live replay send-alert seed-changes chaos-list chaos-status
+        run-consumer run-evidence run-investigation-worker run-remediation-worker investigate-live eval-db eval-migrate eval eval-live replay send-alert seed-changes chaos-list chaos-status
 
 # Every target sees .env (Alembic's env.py and the CLIs read os.environ).
 -include .env
@@ -78,6 +78,11 @@ run-consumer:
 # consumer + stale-lease resume). Calls the configured model API.
 run-investigation-worker:
 	python -m apps.worker.investigation_main
+
+# Phase 7: remediation worker (planning on InvestigationCompleted, execution of
+# approved remediations, approval timeouts, crash recovery). No model.
+run-remediation-worker:
+	python -m apps.worker.remediation_main
 
 # Phase 5: ONE manual, real-model investigation of a live bad-deployment
 # incident (needs `make infra-up-full`, `make migrate`, Anthropic

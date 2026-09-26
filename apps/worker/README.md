@@ -1,6 +1,6 @@
 # apps/worker
 
-Three entrypoints:
+Four entrypoints:
 
 - **`main.py`** — the transactional outbox relay. Polls
   `incident_core.outbox_events` for rows with `published_at IS NULL`,
@@ -27,6 +27,12 @@ Three entrypoints:
   worker, lost event). Calls the model configured by `INVESTIGATION_MODEL`.
   See `docs/architecture/15-investigation-engine.md`.
 
+- **`remediation_main.py`** (Phase 7) -- the remediation worker: plans a
+  proposal on `InvestigationCompleted`, executes approved remediations on
+  `RemediationApproved` (group `cg:remediation-worker`), and sweeps for
+  approval timeouts, lost events and dead workers. No model in it. See
+  `docs/architecture/09-remediation-policy-boundaries.md`.
+
 See `docs/adr/0014-redis-streams-transport.md` for the stream
 sharding/consumer-group/dead-letter design both entrypoints share.
 
@@ -35,6 +41,7 @@ sharding/consumer-group/dead-letter design both entrypoints share.
 ```
 make run-worker      # the outbox relay
 make run-consumer    # the metrics/audit consumer
+make run-remediation-worker     # Phase 7 remediation planning + execution
 make run-investigation-worker   # Phase 5 investigations (needs ANTHROPIC_API_KEY)
 ```
 

@@ -13,7 +13,7 @@ import datetime
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -295,3 +295,148 @@ class RcaReportRow(Base):
     generated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+# --- Phase 7: remediation (migration 0006_remediation) ------------------------------
+
+
+def _ts(nullable: bool = False, default: bool = False) -> Mapped:
+    if default:
+        return mapped_column(DateTime(timezone=True), nullable=nullable, server_default=func.now())
+    return mapped_column(DateTime(timezone=True), nullable=nullable)
+
+
+class RemediationRow(Base):
+    """A proposed catalog action. Proposal columns are immutable (trigger)."""
+
+    __tablename__ = "remediations"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    incident_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.incidents.id"), nullable=False
+    )
+    investigation_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.investigations.id"), nullable=True
+    )
+    idempotency_key: Mapped[str] = mapped_column(String, nullable=False)
+    action_id: Mapped[str] = mapped_column(String, nullable=False)
+    catalog_version: Mapped[str] = mapped_column(String, nullable=False)
+    parameters: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    target_service: Mapped[str] = mapped_column(String, nullable=False)
+    environment: Mapped[str] = mapped_column(String, nullable=False)
+    reason: Mapped[str] = mapped_column(String, nullable=False)
+    expected_effect: Mapped[str] = mapped_column(String, nullable=False)
+    blast_radius_tier: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    proposal_hash: Mapped[str] = mapped_column(String, nullable=False)
+    source: Mapped[str] = mapped_column(String, nullable=False)
+    proposed_by: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    policy_decision_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    approval_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    execution_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    execution_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    executor_result: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    failure_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    verification_ref: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    correlation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    lease_owner: Mapped[str | None] = mapped_column(String, nullable=True)
+    lease_expires_at: Mapped[datetime.datetime | None] = _ts(nullable=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime.datetime] = _ts(default=True)
+    updated_at: Mapped[datetime.datetime] = _ts(default=True)
+    completed_at: Mapped[datetime.datetime | None] = _ts(nullable=True)
+
+
+class RemediationPolicyDecisionRow(Base):
+    __tablename__ = "remediation_policy_decisions"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    remediation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.remediations.id"), nullable=False
+    )
+    proposal_hash: Mapped[str] = mapped_column(String, nullable=False)
+    policy_version: Mapped[str] = mapped_column(String, nullable=False)
+    catalog_version: Mapped[str | None] = mapped_column(String, nullable=True)
+    catalog_digest: Mapped[str] = mapped_column(String, nullable=False)
+    decision: Mapped[str] = mapped_column(String, nullable=False)
+    blast_radius_tier: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    required_approver_roles: Mapped[list] = mapped_column(JSONB, nullable=False)
+    rules: Mapped[list] = mapped_column(JSONB, nullable=False)
+    reasons: Mapped[list] = mapped_column(JSONB, nullable=False)
+    policy_context: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    evaluated_at: Mapped[datetime.datetime] = _ts(default=True)
+
+
+class RemediationApprovalRow(Base):
+    __tablename__ = "remediation_approvals"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    remediation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.remediations.id"), nullable=False, unique=True
+    )
+    policy_decision_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(f"{SCHEMA}.remediation_policy_decisions.id"),
+        nullable=False,
+    )
+    proposal_hash: Mapped[str] = mapped_column(String, nullable=False)
+    decision: Mapped[str] = mapped_column(String, nullable=False)
+    approver: Mapped[str] = mapped_column(String, nullable=False)
+    approver_role: Mapped[str | None] = mapped_column(String, nullable=True)
+    comment: Mapped[str | None] = mapped_column(String, nullable=True)
+    decided_at: Mapped[datetime.datetime] = _ts(default=True)
+
+
+class RemediationExecutionRow(Base):
+    __tablename__ = "remediation_executions"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    remediation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.remediations.id"), nullable=False
+    )
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    executor: Mapped[str] = mapped_column(String, nullable=False)
+    owner: Mapped[str] = mapped_column(String, nullable=False)
+    started_at: Mapped[datetime.datetime] = _ts(default=True)
+    deadline_at: Mapped[datetime.datetime] = _ts()
+    completed_at: Mapped[datetime.datetime | None] = _ts(nullable=True)
+    result: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    error: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class RemediationTimelineRow(Base):
+    __tablename__ = "remediation_timeline"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    remediation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.remediations.id"), nullable=False
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    event: Mapped[str] = mapped_column(String, nullable=False)
+    from_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    to_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    actor: Mapped[str] = mapped_column(String, nullable=False)
+    correlation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    action_id: Mapped[str] = mapped_column(String, nullable=False)
+    catalog_version: Mapped[str] = mapped_column(String, nullable=False)
+    policy_version: Mapped[str | None] = mapped_column(String, nullable=True)
+    details: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    occurred_at: Mapped[datetime.datetime] = _ts(default=True)
+
+
+class KillSwitchRow(Base):
+    __tablename__ = "kill_switches"
+    __table_args__ = {"schema": SCHEMA}
+
+    scope: Mapped[str] = mapped_column(String, primary_key=True)
+    engaged: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    changed_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    changed_at: Mapped[datetime.datetime] = _ts(default=True)

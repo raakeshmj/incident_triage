@@ -434,3 +434,14 @@ investigation row and checks the lease owner (fencing, ADR-0020).
   migrated by the same Alembic histories (`make eval-migrate`). The
   evaluation harness truncates it before every run; it holds nothing that
   matters between runs.
+
+## Phase 7: remediation tables (migration `0006_remediation`)
+
+| Table | Notes |
+|---|---|
+| `remediations` | the aggregate: incident, investigation, action, catalog version, parameters, target, environment, reason, expected effect, tier, proposal hash, source/proposer, status, policy decision, approval/execution status, attempts, executor result, failure reason, verification ref, correlation id, lease, version. Unique `(incident_id, idempotency_key)`. **Proposal columns immutable** (trigger `reject_proposal_mutation`); no deletes. |
+| `remediation_policy_decisions` | decision, policy + catalog version, catalog digest, tier, required roles, every rule result, reasons, the full `policy_context`. Immutable. |
+| `remediation_approvals` | one per remediation (unique): decision (approved / rejected / timed_out), approver, role, the proposal hash and decision id approved. Immutable. |
+| `remediation_executions` | one per attempt: unique `(remediation_id, attempt_number)` and unique `idempotency_key`; status RUNNING / SUCCEEDED / FAILED / TIMED_OUT / UNKNOWN, owner, deadline, result, error. |
+| `remediation_timeline` | append-only audit: event, from/to status, actor, correlation id, action, catalog + policy version, details, time. Immutable. |
+| `kill_switches` | `global` or `service:<name>`; runtime-writable through incident-core only (ADR-0009). |

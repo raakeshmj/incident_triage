@@ -57,7 +57,9 @@ def live_stack(stack_urls):
     return stack_urls
 
 
-def test_live_incident_evidence_and_resolution(live_stack, api_server, session_factory):
+def test_live_incident_evidence_and_resolution(
+    live_stack, quiet_checkout, api_server, session_factory
+):
     started = datetime.now(UTC)
     chaos.main(["stop", "--service", SERVICE])  # clean slate
     chaos.main(

@@ -31,3 +31,14 @@ request-handling logic.
 
 See the repository root README for the full local-dev flow. Short
 version: `make infra-up && make migrate && make run-api`.
+
+## Phase 7: operator endpoints (`routers/remediations.py`)
+
+`GET /api/v1/action-catalog`, `GET /api/v1/incidents/{id}/remediations`,
+`GET /api/v1/remediations/{id}` (with policy decisions, executions,
+timeline), and -- with `Authorization: Bearer $OPERATOR_API_TOKEN` --
+`POST /api/v1/remediations/{id}/approval`,
+`POST /api/v1/incidents/{id}/remediations` (operator proposal),
+`POST /api/v1/remediations/{id}/cancel`, `PUT /api/v1/kill-switches/{scope}`.
+Approver roles come from `REMEDIATION_APPROVERS`. The operator endpoints
+are disabled when no token is configured.

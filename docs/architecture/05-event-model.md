@@ -213,3 +213,20 @@ The investigation worker consumes `InvestigationStarted` in consumer group
 event finds the investigation already claimed or finished and does nothing.
 The event is the fast path only: the worker's resume sweep picks up any
 investigation whose event was lost or whose worker died.
+
+## Phase 7: remediation events
+
+Aggregate `Remediation` (payload `RemediationEventPayload`: remediation id,
+incident id, action id, catalog version, status, proposal hash, actor,
+policy version and decision): `RemediationProposed`,
+`RemediationPolicyEvaluated`, `RemediationApprovalRequested`,
+`RemediationApproved`, `RemediationRejected`, `RemediationStarted`,
+`RemediationExecuted`, `RemediationFailed`, `RemediationCancelled`; plus
+`VerificationRequested` (verification id, target, the catalog entry's
+requirements) and `KillSwitchChanged` (aggregate `KillSwitch`).
+
+The remediation worker consumes `InvestigationCompleted` (plan and propose;
+idempotent per investigation) and `RemediationApproved` (execute; a claim
+of an already-settled remediation does nothing) in consumer group
+`cg:remediation-worker`, deduplicated by `consumed_events`. Its sweep is the
+liveness backstop for lost events and dead workers.

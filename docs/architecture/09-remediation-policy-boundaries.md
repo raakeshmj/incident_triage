@@ -216,3 +216,149 @@ parameters and simulates the call (e.g. a Kubernetes dry-run apply) without
 side effects. Used by: the eval harness (`11-evaluation-architecture.md`),
 staging rehearsal, and an optional "preview" step surfaced to the approver
 in the web UI before they approve.
+
+## Phase 7: as built
+
+```
+InvestigationCompleted ─▶ remediation worker: RemediationPlanner (deterministic)
+                                     │ RemediationProposal (data)        operator API ─┐
+                                     ▼                                                  │
+      incident-core RemediationCoreService.propose ◀────────────────────────────────────┘
+        ├ record PROPOSED (proposal immutable, proposal_hash)
+        ├ build PolicyEvaluationContext from the DB          ─┐  stored verbatim with
+        ├ packages/policy evaluate(...)  (pure)               │  the decision, policy +
+        └ DENY ─▶ POLICY_REJECTED (incident ESCALATED)        ─┘  catalog version, all rules
+          else ─▶ AWAITING_APPROVAL (incident AWAITING_APPROVAL)
+                     │  POST /api/v1/remediations/{id}/approval
+                     │  (operator token; roster role; proposal_hash + policy_decision_id)
+                     ▼
+                 APPROVED (incident REMEDIATION_IN_PROGRESS) ── RemediationApproved
+                     │  remediation worker: RemediationRunner
+                     ▼
+      claim_execution: re-check kill switches, approval binding, catalog, target,
+                       attempts ─▶ execution row (idempotency key, deadline, lease)
+                     │  SimulatorRemediationExecutor (catalog action only)
+                     ▼
+      complete_execution: EXECUTED (incident VERIFYING, VerificationRequested)
+                        | bounded retry (retry-safe + retryable + attempts left)
+                        | FAILED (incident ESCALATED)
+```
+
+### Action catalog (`packages/remediation/catalog.py`, `catalog-2026.09-1`)
+
+| Action | Parameters | Tier (max) | Timeout | Attempts | Retry-safe | Verification |
+|---|---|---|---|---|---|---|
+| `restart_service` | service | 1 (1) | 120 s | 2 | yes | error_rate ≤ 5% for 300 s |
+| `scale_service` | service, increase_by 1–5 | 1, 2 if > 2 (2) | 180 s | 1 | **no** (a repeat adds twice) | latency_p95 ≤ 1 s |
+| `rollback_deployment` | service, from_version, to_version | 2 (2) | 300 s | 2 | yes (compare-and-set on from_version) | error_rate ≤ 5% |
+| `disable_feature_flag` | service, flag | 1 (1) | 60 s | 2 | yes | error_rate ≤ 5% |
+| `revert_configuration` | service, key, from_value, to_value | 2 (2) | 120 s | 2 | yes (compare-and-set on from_value) | error_rate ≤ 5% |
+
+Every entry: allowed environments `production`, `staging`; approval
+mandatory; automatic execution never allowed; requires an accepted RCA; the
+target must be the RCA's root-cause component. Parameters are strict
+pydantic models (`extra="forbid"`, patterns on every string), validated at
+proposal, by policy, again before execution and again inside the executor.
+The catalog is shipped as reviewed code with a version and a content digest
+recorded on every decision (ADR-0024); nothing at runtime can add or widen
+an action.
+
+### Policy (`packages/policy/engine.py`, `policy-2026.09-1`)
+
+`evaluate(proposal, entry, policy, context) -> PolicyDecision` imports no
+I/O (boundary test). Every rule runs and reports; any deny → DENY, else
+REQUIRE_APPROVAL. The current policy has no automatic-execution
+environments, and every catalog entry forbids automatic execution, so ALLOW
+is unreachable; incident-core would treat it as REQUIRE_APPROVAL anyway.
+
+| Rule | Denies when |
+|---|---|
+| kill_switch.global / kill_switch.service | a kill switch is engaged |
+| action.known | the action isn't in the catalog |
+| action.parameters | parameters fail the entry's schema |
+| target.known | the target isn't a catalogued service |
+| target.in_incident_scope | the target isn't the incident's service or a direct neighbour |
+| environment.not_prohibited | the environment is prohibited by policy |
+| environment.allowed_for_action | the action isn't allowed in the environment |
+| blast_radius.action_max / .environment_max | the invocation's tier exceeds the action's or the environment's maximum (production: 2) |
+| incident.remediable_status | the incident isn't RCA_READY |
+| rca.required | no completed investigation with an accepted RCA |
+| rca.target_matches_root_cause | the target isn't the RCA's root-cause component |
+| attempts.per_incident | ≥ 2 remediations already attempted for the incident |
+| attempts.per_service_per_hour | ≥ 3 executions on the target in the last hour |
+| approval.required | (never denies) → REQUIRE_APPROVAL; roles: tier 1 on_call_engineer or service_owner, tier 2 service_owner |
+
+`PolicyEvaluationContext` (built by incident-core, stored with the
+decision): incident id/environment/severity/service/status, investigation
+status, whether an accepted RCA exists and its cause category/component,
+target, target known / in scope, blast-radius tier, attempted remediations
+for the incident, executions on the target in the last hour, both kill
+switches, proposal source. Model confidence is not in it. A stored decision
+re-evaluates to the same result (tested).
+
+### Approval
+
+- An approval names the `proposal_hash` (incident, investigation, action,
+  catalog version, parameters, environment) and `policy_decision_id` the
+  approver reviewed; anything else is refused (409). Proposal columns are
+  immutable in the database, so a changed proposal is necessarily a new
+  remediation (`revise` cancels the old one as superseded) with a new
+  decision and a new approval.
+- The approver must be on the operator roster and hold a role the decision
+  requires; roles come from the roster, never from the request. An operator
+  cannot approve their own proposal.
+- One decision per remediation (unique): a redelivered identical decision
+  is a no-op, a conflicting one is refused.
+- Rejection → CANCELLED, incident ESCALATED. No decision within
+  `REMEDIATION_APPROVAL_TIMEOUT_MINUTES` (30) → `timed_out`, CANCELLED,
+  incident ESCALATED. Silence never approves.
+- Approval only makes a remediation eligible; nothing can override a
+  policy rejection.
+
+### Executor boundary
+
+`RemediationExecutor` (`execute(request) -> ExecutorResult`,
+`inspect(idempotency_key)`) is called only by `RemediationRunner`, only for
+an execution attempt incident-core has just authorized.
+`SimulatorRemediationExecutor` performs one catalog action on the simulated
+environment through its control surfaces: the service's fault state
+(`chaos:{service}`, polled by the running services) and the simulated
+deployment / config registries (records say `deployed_by:
+remediation-executor`). Rollback and config revert are compare-and-set
+(the running version / current value must match, or it fails "target
+changed" without acting); a repeat after success is a no-op. Restart clears
+process-level faults (memory leak, CPU burn); scale records desired
+replicas (≤ 10); flags are set off. Every action is logged to
+`sim:ops:{service}` and its result stored under the idempotency key. No
+shell, Docker, Kubernetes or database access (boundary test).
+
+### Failure handling and recovery
+
+| Situation | Behaviour |
+|---|---|
+| policy rejection | POLICY_REJECTED (terminal), incident ESCALATED |
+| approval rejected / timed out | CANCELLED, incident ESCALATED |
+| operator withdraws | CANCELLED, incident back to RCA_READY |
+| kill switch engaged before execution | claim refuses: CANCELLED, incident ESCALATED; nothing runs |
+| catalog changed / parameters invalid / target unknown / attempts exhausted at claim | FAILED, incident ESCALATED |
+| target changed (someone deployed) | executor fails without acting (compare-and-set), FAILED |
+| executor failure, retryable, retry-safe action, attempts left | new attempt (new idempotency key) |
+| otherwise | FAILED, incident ESCALATED |
+| timeout | TIMED_OUT; retried only for retry-safe actions, within attempts; `scale_service` never |
+| duplicate RemediationApproved / execution request | claim finds it settled; the executor returns its stored result |
+| worker dies mid-execution | lease expires; the next claim marks the attempt UNKNOWN and returns a reconcile ticket; the runner asks the executor about that idempotency key: applied → EXECUTED (reconciled), not applied → retry only if retry-safe |
+| lost event | the worker's sweep picks up APPROVED and lease-expired EXECUTING remediations |
+
+A kill switch cannot stop an attempt already running (documented limit);
+it stops every later claim.
+
+### Audit trail
+
+`remediation_timeline` (immutable) records every step -- proposed,
+policy_evaluated, approval_requested, approved / rejected /
+approval_timed_out, execution_started, execution_attempt_failed,
+execution_interrupted, executed / failed / cancelled,
+verification_requested -- each with actor, timestamp, correlation id,
+action id, catalog version and policy version. Policy decisions and
+approvals are immutable rows; proposal columns are immutable; every
+transition also emits an outbox event.

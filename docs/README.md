@@ -1,6 +1,6 @@
 # Incident Intelligence — Design Documentation
 
-Status: **Phases 1-5 implemented** (see [implementation-order.md](implementation-order.md)).
+Status: **Phases 1-7 implemented** (see [implementation-order.md](implementation-order.md)).
 
 ## Reading order
 

@@ -97,3 +97,27 @@ scripts turns that react to the real tool results):
   investigated through the live evidence backends.
 - `scripts/manual_investigation.py` (`make investigate-live`) is the one
   real-model run; it is a script, not a test, and is never collected.
+
+Phase 7 additions:
+
+- `unit/policy/` -- every safety rule on its own, unknown actions, strict
+  parameters, prohibited environments, blast radius, no ALLOW path,
+  determinism and replay from a stored context, no confidence input, purity.
+- `unit/remediation/` -- catalog completeness/strictness/retry safety; the
+  planner (evidence-derived parameters, uncited evidence ignored, causes
+  with no catalog action).
+- `unit/test_boundaries.py` -- the agent and tools can't reach remediation;
+  the policy engine does no I/O; the executor has no shell/DB/orchestrator.
+- `integration/test_remediation.py` -- planned rollback approved, executed
+  on the simulator and audited; decision replay; immutability; policy
+  rejections (unknown action/target, out of scope, not the root cause,
+  invalid parameters); kill switch before proposal and after approval;
+  attempt limits; roles and binding; duplicate/conflicting approvals;
+  rejection; revision needs re-approval and forbids self-approval; approval
+  timeout; duplicate execution; retry within bounds; retry limit;
+  non-retryable failure; target changed; timeouts (retry-safe vs not);
+  worker crash after / before acting; live leases.
+- `e2e/test_remediation_flow.py` -- events + API end to end with
+  redelivery; operator auth/roster/binding; kill switch via the API.
+- `e2e/test_remediation_live_stack.py` (`stack`) -- a real bad-deployment
+  incident rolled back after approval.

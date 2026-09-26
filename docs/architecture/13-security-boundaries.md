@@ -161,3 +161,22 @@ the model's context via evidence. Mitigations:
 - The test suite overrides `ANTHROPIC_API_KEY` with a placeholder at
   startup, so no test can use or print the real key. Tests that check
   secret handling run in an isolated directory with fake values.
+
+## Phase 7: remediation boundaries
+
+- The investigation agent has no path to remediation: no tool, and
+  boundary tests forbid `packages/agents` and `packages/tools` importing
+  the planner, policy, runner, executor or incident-core's remediation
+  commands. A model-originated proposal (source `model`) would go through
+  the same `propose()` validation, policy and approval as anything else.
+- The executor performs only catalog actions, re-validates parameters and
+  environment itself, has no shell / Docker / Kubernetes / database access
+  (boundary test), and is invoked only for an incident-core-authorized
+  attempt.
+- Operator endpoints require `OPERATOR_API_TOKEN` (disabled when unset);
+  approver roles come from `REMEDIATION_APPROVERS`, never from the request;
+  approvals bind to the proposal hash and policy decision; self-approval of
+  an operator proposal is refused. (A shared token + roster stands in for a
+  real identity provider.)
+- Kill switches (global / per service) deny every new proposal and stop
+  every execution that hasn't started.

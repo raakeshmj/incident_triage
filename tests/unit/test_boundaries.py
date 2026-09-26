@@ -89,3 +89,47 @@ def test_only_the_claude_adapter_imports_the_model_sdk():
         if any(n == "anthropic" or n.startswith("anthropic.") for n in names)
     )
     assert importers == ["packages/agents/claude.py"]
+
+
+def test_the_agent_and_its_tools_have_no_path_to_remediation():
+    """Phase 7: the model can never invoke the executor, the runner, the
+    planner or incident-core's remediation commands -- no tool, no import."""
+    forbidden = ("packages.remediation", "packages.policy", "packages.incident.remediations")
+    assert _violations("packages/agents", forbidden) == []
+    assert _violations("packages/tools", forbidden) == []
+    from packages.agents.toolset import InvestigationToolset
+
+    names = {t.name for t in InvestigationToolset.definitions()}
+    assert not any(
+        word in n
+        for n in names
+        for word in ("remediat", "rollback", "restart", "scale", "execute", "approve")
+    )
+
+
+def test_the_policy_engine_does_no_io():
+    forbidden = (
+        "sqlalchemy",
+        "psycopg",
+        "redis",
+        "httpx",
+        "subprocess",
+        "socket",
+        "packages.incident",
+        "packages.events",
+        "anthropic",
+    )
+    assert _violations("packages/policy", forbidden) == []
+
+
+def test_the_executor_has_no_shell_database_or_orchestrator_access():
+    forbidden = (
+        "subprocess",
+        "sqlalchemy",
+        "psycopg",
+        "docker",
+        "kubernetes",
+        "paramiko",
+        "packages.incident.db",
+    )
+    assert _violations("packages/remediation", forbidden) == []

@@ -39,6 +39,12 @@ def _clean_tables(engine: Engine) -> Iterator[None]:
             conn.execute(
                 text(
                     "TRUNCATE TABLE "
+                    "incident_core.remediation_timeline, "
+                    "incident_core.remediation_executions, "
+                    "incident_core.remediation_approvals, "
+                    "incident_core.remediation_policy_decisions, "
+                    "incident_core.remediations, "
+                    "incident_core.kill_switches, "
                     "incident_core.rca_reports, "
                     "incident_core.hypothesis_evidence_links, "
                     "incident_core.hypotheses, "

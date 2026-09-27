@@ -97,3 +97,33 @@ every new proposal and stops every execution that has not started.
   the window may close before the rate reflects recovery, and verification
   correctly FAILS. 0.25 was just enough in the manual run (PASSED on the
   9th observation).
+
+## Live model via OpenRouter
+
+`packages/agents/openrouter.py` puts OpenRouter's OpenAI-compatible Chat
+Completions API behind the same `InvestigationModel` interface (registered
+in `packages/agents/factory.py`; the engine is unchanged).
+
+```bash
+# .env: OPENROUTER_API_KEY=...   (never printed, persisted or traced)
+INVESTIGATION_PROVIDER=openrouter \
+INVESTIGATION_MODEL=dots-studio/dots-3-note-preview:free \
+INVESTIGATION_MODEL_ATTEMPTS=6 INVESTIGATION_RETRY_BACKOFF_SECONDS=5 \
+python scripts/manual_investigation.py
+```
+
+- Unlisted OpenRouter models run with the conservative profile: no
+  thinking/effort parameters, no cache hints. Providers that cache
+  implicitly report `prompt_tokens_details.cached_tokens`, recorded per turn.
+- Upstream failures are model errors, never turns: an upstream 429
+  (`limit_source` in the error) and a generation that ends with
+  `finish_reason: "error"` (a truncated tool call) are retried with the
+  engine's backoff and end as `FAILED model_unavailable` → ESCALATED when
+  retries run out.
+- Free models share upstream pools. In the first validation (2026-09-27)
+  `qwen/qwen3.8-27b:free` was rate-limited upstream for every attempt, and
+  `dots-studio/dots-3-note-preview:free` failed upstream on long
+  investigation contexts (about 25–30k prompt tokens) at the conclusion
+  turn. Neither produced an RCA; both escalated correctly. Reliable live
+  runs need a provider/model with dedicated capacity (credits, BYOK, or a
+  paid model).

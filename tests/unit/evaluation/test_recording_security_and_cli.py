@@ -50,6 +50,7 @@ def test_scrubbing_redacts_known_values_and_credential_shapes():
 
 
 def test_live_evaluation_refuses_without_confirmation(monkeypatch, capsys):
+    monkeypatch.setenv("INVESTIGATION_PROVIDER", "anthropic")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-real")
     monkeypatch.setattr(cli, "_environment", lambda: pytest.fail("must not touch the DB"))
     assert cli.evaluate_main(["--scenario", "bad-deployment", "--mode", "live"]) == 2
@@ -57,10 +58,7 @@ def test_live_evaluation_refuses_without_confirmation(monkeypatch, capsys):
 
 
 def test_live_evaluation_refuses_without_credentials(monkeypatch, capsys):
-    class NoKey:
-        anthropic_api_key = None
-
-    monkeypatch.setattr(cli, "AnthropicCredentials", NoKey)
+    monkeypatch.setattr(cli, "missing_credentials", lambda provider: "SOME_PROVIDER_KEY")
     monkeypatch.setattr(cli, "_environment", lambda: pytest.fail("must not touch the DB"))
     code = cli.evaluate_main(["--scenario", "bad-deployment", "--mode", "live", "--yes"])
     assert code == 2
@@ -68,6 +66,7 @@ def test_live_evaluation_refuses_without_credentials(monkeypatch, capsys):
 
 
 def test_live_evaluation_uses_the_configured_provider_and_model(monkeypatch, capsys):
+    monkeypatch.setenv("INVESTIGATION_PROVIDER", "anthropic")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-real")
     monkeypatch.setenv("INVESTIGATION_MODEL", "claude-haiku-4-5")
     monkeypatch.setattr(cli, "_environment", lambda: pytest.fail("must not touch the DB"))

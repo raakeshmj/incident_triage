@@ -78,7 +78,18 @@ def test_investigation_agent_has_no_path_to_state_backends_or_shell():
         "packages.evidence.db",
         "packages.evidence.repository",
     )
-    assert _violations("packages/agents", forbidden) == []
+    violations = _violations("packages/agents", forbidden)
+    # the OpenRouter adapter's HTTP client talks only to the model provider
+    assert violations == ["packages/agents/openrouter.py imports httpx"]
+
+
+def test_only_the_openrouter_adapter_makes_http_calls_in_the_agent_package():
+    importers = sorted(
+        file for file, names in _imports("packages/agents").items() if "httpx" in names
+    )
+    assert importers == ["packages/agents/openrouter.py"]
+    names = _imports("packages/agents")["packages/agents/openrouter.py"]
+    assert not {n for n in names if n.startswith(("packages.tools", "packages.evidence"))}
 
 
 def test_only_the_claude_adapter_imports_the_model_sdk():

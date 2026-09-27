@@ -33,7 +33,7 @@ from typing import Any
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from packages.agents.config import AnthropicCredentials, InvestigationSettings, ModelConfigError
+from packages.agents.config import InvestigationSettings, ModelConfigError, missing_credentials
 from packages.agents.factory import ModelFactory, build_investigation_model, validate_provider
 from packages.evaluation.harness import (
     FAKE_SPEC,
@@ -142,9 +142,10 @@ def evaluate_main(argv: list[str] | None = None) -> int:
         except ModelConfigError as exc:
             print(f"live mode: {exc}", file=sys.stderr)
             return 2
-        if spec.provider == "anthropic" and AnthropicCredentials().anthropic_api_key is None:
+        missing = missing_credentials(spec.provider)
+        if missing:
             print(
-                "live mode needs provider credentials (ANTHROPIC_API_KEY for anthropic); "
+                f"live mode needs provider credentials ({missing} for {spec.provider}); "
                 "--mode fake needs none",
                 file=sys.stderr,
             )

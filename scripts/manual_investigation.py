@@ -3,7 +3,7 @@
 spends real API tokens. Run it by hand:
 
     make infra-up-full && make migrate
-    # ANTHROPIC_API_KEY in .env (or exported); never printed
+    # the provider's key in .env (ANTHROPIC_API_KEY / OPENROUTER_API_KEY); never printed
     python scripts/manual_investigation.py  # uses INVESTIGATION_MODEL (default claude-haiku-4-5)
 
 What it does, end to end on the live stack:
@@ -46,10 +46,11 @@ load_dotenv(ROOT / ".env")
 
 from apps.worker.investigation_main import build_runtime  # noqa: E402
 from packages.agents.config import (  # noqa: E402
-    AnthropicCredentials,
     InvestigationSettings,
+    missing_credentials,
     resolve_model_spec,
 )
+from packages.agents.factory import validate_provider  # noqa: E402
 from packages.incident.db.base import make_engine, make_session_factory  # noqa: E402
 from packages.incident.db.models import IncidentRow  # noqa: E402
 from simulator.changes.registry import ChangeRegistry  # noqa: E402
@@ -87,8 +88,10 @@ def main() -> int:
     if spec.model.startswith("claude-opus") and not args.allow_opus:
         print(f"refusing to run the manual investigation on {spec.model}; see --help")
         return 2
-    if spec.provider == "anthropic" and AnthropicCredentials().anthropic_api_key is None:
-        print("ANTHROPIC_API_KEY is not set (environment or .env)")
+    validate_provider(spec.provider)
+    missing = missing_credentials(spec.provider)
+    if missing:
+        print(f"{missing} is not set (environment or .env)")
         return 2
     print(
         f"runtime model: {spec.provider}/{spec.model} thinking={spec.thinking} effort={spec.effort}"

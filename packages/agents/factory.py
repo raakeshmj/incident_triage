@@ -12,7 +12,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from packages.agents.config import AnthropicCredentials, ModelConfigError, ModelSpec
+from packages.agents.config import (
+    AnthropicCredentials,
+    ModelConfigError,
+    ModelSpec,
+    OpenRouterCredentials,
+)
 from packages.agents.model import InvestigationModel
 
 ModelFactory = Callable[[ModelSpec], InvestigationModel]
@@ -27,7 +32,16 @@ def _anthropic(spec: ModelSpec) -> InvestigationModel:
     return ClaudeInvestigationModel(spec, api_key=key.get_secret_value())
 
 
-PROVIDERS: dict[str, ModelFactory] = {"anthropic": _anthropic}
+def _openrouter(spec: ModelSpec) -> InvestigationModel:
+    key = OpenRouterCredentials().openrouter_api_key
+    if key is None:
+        raise ModelConfigError("OPENROUTER_API_KEY is not set (process environment or .env)")
+    from packages.agents.openrouter import OpenRouterInvestigationModel
+
+    return OpenRouterInvestigationModel(spec, api_key=key.get_secret_value())
+
+
+PROVIDERS: dict[str, ModelFactory] = {"anthropic": _anthropic, "openrouter": _openrouter}
 
 
 def known_providers() -> list[str]:

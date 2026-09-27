@@ -75,7 +75,12 @@ ANTHROPIC_PROFILES: dict[str, ModelProfile] = {
 }
 # provider -> model -> profile. A new provider adds a table here plus a
 # builder in packages/agents/factory.py; the engine doesn't change.
-PROVIDER_PROFILES: dict[str, dict[str, ModelProfile]] = {"anthropic": ANTHROPIC_PROFILES}
+PROVIDER_PROFILES: dict[str, dict[str, ModelProfile]] = {
+    "anthropic": ANTHROPIC_PROFILES,
+    # OpenRouter models run with the conservative unknown-model profile (no
+    # thinking/effort/cache parameters); add entries here to opt a model in.
+    "openrouter": {},
+}
 # Kept for existing imports: the Anthropic table.
 MODEL_PROFILES = ANTHROPIC_PROFILES
 # Unknown provider/model pairs still work -- conservatively, with no
@@ -175,6 +180,32 @@ class AnthropicCredentials(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     anthropic_api_key: SecretStr | None = None
+
+
+class OpenRouterCredentials(BaseSettings):
+    """OPENROUTER_API_KEY, from the process environment or `.env`; like the
+    Anthropic key, never persisted, logged or part of a trace."""
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    openrouter_api_key: SecretStr | None = None
+
+
+# provider -> (credential settings class, field, environment variable name)
+PROVIDER_CREDENTIALS: dict[str, tuple[type[BaseSettings], str, str]] = {
+    "anthropic": (AnthropicCredentials, "anthropic_api_key", "ANTHROPIC_API_KEY"),
+    "openrouter": (OpenRouterCredentials, "openrouter_api_key", "OPENROUTER_API_KEY"),
+}
+
+
+def missing_credentials(provider: str) -> str | None:
+    """The environment variable a live run of `provider` still needs, or None.
+    Reads presence only; the value is never returned."""
+    entry = PROVIDER_CREDENTIALS.get(provider)
+    if entry is None:
+        return None
+    settings_cls, field_name, env_name = entry
+    return None if getattr(settings_cls(), field_name) is not None else env_name
 
 
 class ModelConfigError(ValueError):

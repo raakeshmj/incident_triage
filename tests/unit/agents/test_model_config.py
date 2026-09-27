@@ -25,6 +25,8 @@ REQUEST = DecisionRequest(system_prompt="s", tools=[], transcript=[ContextEntry(
 def _fake_key(monkeypatch):
     # the adapter is constructed but never called; never the real key from .env
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-real")
+    # these tests are about Anthropic model resolution, whatever .env selects
+    monkeypatch.setenv("INVESTIGATION_PROVIDER", "anthropic")
 
 
 def _settings(monkeypatch, **env: str) -> InvestigationSettings:

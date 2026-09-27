@@ -12,6 +12,10 @@ hypotheses and a conclusion that incident-core validates. Design:
   transcript types. The engine depends only on this.
 - `claude.py` -- `ClaudeInvestigationModel`, the only module that imports
   the `anthropic` SDK (boundary-tested).
+- `openai_compatible.py` -- `OpenAICompatibleInvestigationModel`: any
+  OpenAI-compatible Chat Completions endpoint, configured by base URL, key
+  and model plus declared `ChatCapabilities`; the only module here that makes
+  HTTP calls (boundary-tested). `openrouter.py` is a preset of it.
 - `config.py` -- `INVESTIGATION_*` settings, `MODEL_PROFILES`, `ModelSpec`.
   Switching model = changing `INVESTIGATION_MODEL`.
 - `factory.py` -- provider name -> model implementation.
@@ -22,7 +26,7 @@ hypotheses and a conclusion that incident-core validates. Design:
   `incident_id`/`investigation_id` bound outside the model; compact results.
 
 What this package must never do (enforced by `tests/unit/test_boundaries.py`):
-import a DB driver, Redis, an HTTP client or `subprocess`; mutate
+import a DB driver, Redis, an HTTP client (outside `openai_compatible.py`) or `subprocess`; mutate
 production; accept an incident id from the model.
 
 Phase 6: `factory.PROVIDERS` is the provider registry (credentials resolved

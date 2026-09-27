@@ -98,32 +98,80 @@ every new proposal and stops every execution that has not started.
   correctly FAILS. 0.25 was just enough in the manual run (PASSED on the
   9th observation).
 
-## Live model via OpenRouter
+## Runtime model configuration
 
-`packages/agents/openrouter.py` puts OpenRouter's OpenAI-compatible Chat
-Completions API behind the same `InvestigationModel` interface (registered
-in `packages/agents/factory.py`; the engine is unchanged).
+The investigation engine depends only on the `InvestigationModel`
+interface; the provider is configuration. Three providers ship:
+
+| `INVESTIGATION_PROVIDER` | Adapter | Configure |
+|---|---|---|
+| `anthropic` | `packages/agents/claude.py` (Messages API, explicit prompt caching) | `ANTHROPIC_API_KEY`, `INVESTIGATION_MODEL` |
+| `openai_compatible` | `packages/agents/openai_compatible.py` (Chat Completions) | `INVESTIGATION_BASE_URL`, `INVESTIGATION_API_KEY`, `INVESTIGATION_MODEL` |
+| `openrouter` | preset of the generic adapter (fixed base URL) | `OPENROUTER_API_KEY`, `INVESTIGATION_MODEL` |
+
+### Any OpenAI-compatible endpoint
+
+The generic provider is meant for APIs that implement OpenAI Chat
+Completions with function tools (OpenAI, Groq, Together, vLLM, Ollama,
+gateways such as OpenRouter or APInex). Changing provider or model means
+changing these three values -- no code:
 
 ```bash
-# .env: OPENROUTER_API_KEY=...   (never printed, persisted or traced)
-INVESTIGATION_PROVIDER=openrouter \
-INVESTIGATION_MODEL=dots-studio/dots-3-note-preview:free \
-INVESTIGATION_MODEL_ATTEMPTS=6 INVESTIGATION_RETRY_BACKOFF_SECONDS=5 \
-python scripts/manual_investigation.py
+INVESTIGATION_PROVIDER=openai_compatible
+INVESTIGATION_BASE_URL=https://api.example.com/v1   # <base>/chat/completions is called
+INVESTIGATION_API_KEY=...                            # .env only; never printed, persisted or traced
+INVESTIGATION_MODEL=<model id exactly as the provider lists it>
 ```
 
-- Unlisted OpenRouter models run with the conservative profile: no
-  thinking/effort parameters, no cache hints. Providers that cache
-  implicitly report `prompt_tokens_details.cached_tokens`, recorded per turn.
-- Upstream failures are model errors, never turns: an upstream 429
-  (`limit_source` in the error) and a generation that ends with
-  `finish_reason: "error"` (a truncated tool call) are retried with the
-  engine's backoff and end as `FAILED model_unavailable` → ESCALATED when
-  retries run out.
+The base URL is persisted with each investigation (so a resumed run reaches
+the same endpoint) and is therefore refused if it carries credentials, a
+query string, or plain http to a non-local host. The key is read at call
+time and is never part of the persisted model settings.
+
+Optional capabilities -- declare only what the endpoint supports; anything
+undeclared is not sent, and the engine's own validation applies regardless:
+
+| Setting | Default | Effect |
+|---|---|---|
+| `INVESTIGATION_TOOL_CHOICE` | `true` | send `tool_choice: "auto"` |
+| `INVESTIGATION_PARALLEL_TOOL_CALLS` | unset | send `parallel_tool_calls` when set |
+| `INVESTIGATION_STRICT_TOOLS` | `false` | `strict: true` on tools whose schema is strict-compatible |
+| `INVESTIGATION_REASONING` | `none` | `reasoning_effort` (OpenAI style) or `reasoning_object` (OpenRouter style) carries `INVESTIGATION_EFFORT`; `none` never sends it |
+| `INVESTIGATION_MAX_TOKENS_PARAM` | `max_tokens` | or `max_completion_tokens` |
+| `INVESTIGATION_CONTEXT_TOKENS` | unset | the context window, recorded with the model settings |
+| `INVESTIGATION_PROVIDER_PROMPT_CACHING` | `false` | the provider caches automatically; cached tokens are recorded |
+
+Behaviour, whatever the endpoint:
+
+- one request per decision; retries and budgets are the engine's
+  (`INVESTIGATION_MODEL_ATTEMPTS`, `INVESTIGATION_RETRY_BACKOFF_SECONDS`,
+  `INVESTIGATION_API_TIMEOUT_SECONDS`). Terminal errors (authentication,
+  model_unavailable, bad_request) are not retried;
+- errors are normalized to authentication / rate_limit / model_unavailable /
+  bad_request / timeout / upstream_error / malformed_response, with bounded
+  diagnostics that are scrubbed of keys and bearer tokens;
+- tool calls come from the structured `tool_calls` field; malformed JSON is
+  flagged for the engine to reject; truncated (`length`) or failed
+  (`error`) generations never become actions;
+- hidden reasoning is never stored (reasoning fields dropped, inline
+  `<think>` blocks stripped); only reasoning token counts are kept;
+- no prompt-cache hints are sent (OpenAI-compatible APIs cache
+  automatically or not at all); cached tokens a provider reports are recorded.
+
+Check an endpoint before an investigation (tiny requests, no project data):
+
+```bash
+python scripts/provider_check.py    # catalog id, one completion, one trivial tool call
+```
+
+### OpenRouter
+
+The `openrouter` preset uses `https://openrouter.ai/api/v1` and
+`OPENROUTER_API_KEY`; everything else is the generic adapter.
+
 - Free models share upstream pools. In the first validation (2026-09-27)
   `qwen/qwen3.8-27b:free` was rate-limited upstream for every attempt, and
   `dots-studio/dots-3-note-preview:free` failed upstream on long
   investigation contexts (about 25–30k prompt tokens) at the conclusion
   turn. Neither produced an RCA; both escalated correctly. Reliable live
-  runs need a provider/model with dedicated capacity (credits, BYOK, or a
-  paid model).
+  runs need a provider/model with dedicated capacity.

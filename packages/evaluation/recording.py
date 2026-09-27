@@ -45,6 +45,7 @@ SCHEMA_VERSION: Literal["recording-v1"] = "recording-v1"
 REDACTED = "[REDACTED]"
 _SECRET_SHAPES = (
     re.compile(r"sk-ant-[A-Za-z0-9_\-]{8,}"),
+    re.compile(r"\b(?:sk|pk|rk|gsk|xai)-[A-Za-z0-9_\-]{16,}"),
     re.compile(r"(?i)bearer\s+[A-Za-z0-9._\-]{12,}"),
     re.compile(r"postgres(?:ql)?(?:\+\w+)?://[^:@/\s]+:[^@/\s]+@"),
 )

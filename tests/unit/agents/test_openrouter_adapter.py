@@ -86,7 +86,7 @@ def test_renders_system_context_replayed_turns_tool_results_and_notices():
     assert [m["role"] for m in messages] == ["system", "user", "assistant", "tool", "user"]
     assert messages[0]["content"] == "SYSTEM"
     assert messages[2]["tool_calls"][0]["id"] == "c1"
-    assert messages[2]["reasoning_details"] == [{"type": "reasoning.text", "text": "think"}]
+    assert "reasoning_details" not in messages[2]  # hidden reasoning is never replayed or stored
     assert messages[3] == {"role": "tool", "tool_call_id": "c1", "content": '{"ok": true}'}
     assert messages[4]["content"] == "2 iterations left"
 
@@ -223,4 +223,4 @@ def test_a_generation_that_failed_upstream_is_retried_not_acted_on():
     body = _ok({"tool_calls": [call]}, "error")
     with pytest.raises(ModelError) as caught:
         _model(lambda r: httpx.Response(200, json=body)).decide(REQUEST)
-    assert caught.value.retryable and caught.value.code == "upstream_generation_error"
+    assert caught.value.retryable and caught.value.code == "upstream_error"

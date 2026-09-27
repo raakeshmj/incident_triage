@@ -59,3 +59,14 @@ it. Changing it remains a configuration change. Comparing models is not a
 project requirement and no benchmarking infrastructure exists. The API key
 is resolved by `AnthropicCredentials` (environment or `.env`, `SecretStr`),
 separately from the persisted `ModelSpec`, so it never reaches a trace.
+
+## Addendum (2026-09): OpenAI-compatible providers
+
+One generic adapter, `OpenAICompatibleInvestigationModel`, serves every
+OpenAI-compatible Chat Completions endpoint, configured by
+`INVESTIGATION_BASE_URL` + `INVESTIGATION_API_KEY` + `INVESTIGATION_MODEL`
+(`INVESTIGATION_PROVIDER=openai_compatible`). What an endpoint accepts is
+declared configuration (`ChatCapabilities`), never inferred from a model
+name; undeclared parameters are not sent. The base URL and capabilities are
+persisted with the investigation's model settings; the key never is.
+OpenRouter is a preset (fixed base URL). The engine is unchanged.

@@ -20,8 +20,9 @@ configuration changed.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -88,6 +89,72 @@ MODEL_PROFILES = ANTHROPIC_PROFILES
 UNKNOWN_MODEL_PROFILE = ModelProfile(thinking="none", efforts=frozenset())
 
 
+@dataclass(frozen=True)
+class ChatCapabilities:
+    """What an OpenAI-compatible Chat Completions endpoint accepts, declared by
+    configuration (never guessed from a model name). The adapter sends only
+    what is declared; everything it can't enforce stays enforced by the
+    engine's own validation, which never depends on these flags.
+
+    - tools: function tools are sent (the investigation needs them; a model
+      without tool calling can't investigate and fails visibly).
+    - tool_choice: `tool_choice: "auto"` is sent (some endpoints reject it).
+    - parallel_tool_calls: sent as given when not None.
+    - strict_tools: `strict: true` on tools whose JSON schema is compatible
+      with strict structured outputs; incompatible schemas are sent without.
+    - reasoning: how to send `INVESTIGATION_EFFORT` -- "none" (never),
+      "reasoning_effort" (OpenAI style), "reasoning_object" (OpenRouter style).
+    - max_tokens_param: "max_tokens" or "max_completion_tokens".
+    - context_tokens: the model's context window, when known (recorded).
+    - prompt_caching: the provider caches prompts; its reported cached tokens
+      are recorded (no hints are sent -- OpenAI-compatible APIs cache
+      automatically or not at all).
+    """
+
+    tools: bool = True
+    tool_choice: bool = True
+    parallel_tool_calls: bool | None = None
+    strict_tools: bool = False
+    reasoning: Literal["none", "reasoning_effort", "reasoning_object"] = "none"
+    max_tokens_param: Literal["max_tokens", "max_completion_tokens"] = "max_tokens"
+    context_tokens: int | None = None
+    prompt_caching: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> ChatCapabilities:
+        known = {k: v for k, v in (data or {}).items() if k in cls.__dataclass_fields__}
+        return cls(**known)
+
+
+# Providers served through the generic OpenAI-compatible adapter:
+# provider -> (fixed base URL or None = INVESTIGATION_BASE_URL, default capabilities)
+OPENAI_COMPATIBLE_PROVIDERS: dict[str, tuple[str | None, ChatCapabilities]] = {
+    "openai_compatible": (None, ChatCapabilities()),
+    # reasoning stays "none" unless configured (INVESTIGATION_REASONING=reasoning_object)
+    "openrouter": ("https://openrouter.ai/api/v1", ChatCapabilities()),
+}
+
+
+def validate_base_url(url: str) -> str:
+    """https (or http for localhost) with a host; no credentials or query
+    string, since the base URL is persisted with the investigation."""
+    parts = urlsplit(url.strip())
+    local = parts.hostname in ("localhost", "127.0.0.1")
+    if parts.scheme not in ("https", "http") or not parts.hostname:
+        raise ModelConfigError(f"INVESTIGATION_BASE_URL must be an http(s) URL, got {url!r}")
+    if parts.scheme == "http" and not local:
+        raise ModelConfigError("INVESTIGATION_BASE_URL must use https (http only for localhost)")
+    if parts.username or parts.password or parts.query or parts.fragment:
+        raise ModelConfigError(
+            "INVESTIGATION_BASE_URL must not carry credentials, a query or a fragment; "
+            "put the key in INVESTIGATION_API_KEY"
+        )
+    return url.strip().rstrip("/")
+
+
 def profile_for(provider: str, model: str) -> ModelProfile:
     return PROVIDER_PROFILES.get(provider, {}).get(model, UNKNOWN_MODEL_PROFILE)
 
@@ -116,6 +183,19 @@ class InvestigationSettings(BaseSettings):
     # auto: send the provider's prompt-cache hint on the stable prefix
     # (system prompt + tool definitions) where the provider supports it.
     investigation_prompt_cache: Literal["auto", "off"] = "auto"
+
+    # --- OpenAI-compatible providers (INVESTIGATION_PROVIDER=openai_compatible) ---
+    # The minimum: INVESTIGATION_BASE_URL + INVESTIGATION_API_KEY + INVESTIGATION_MODEL.
+    # Capabilities default to the conservative set; declare more only if the
+    # endpoint supports them (docs/operations.md).
+    investigation_base_url: str | None = None
+    investigation_tool_choice: bool = True
+    investigation_parallel_tool_calls: bool | None = None
+    investigation_strict_tools: bool = False
+    investigation_reasoning: Literal["none", "reasoning_effort", "reasoning_object"] | None = None
+    investigation_max_tokens_param: Literal["max_tokens", "max_completion_tokens"] = "max_tokens"
+    investigation_context_tokens: int | None = None
+    investigation_provider_prompt_caching: bool = False
 
     investigation_max_iterations: int = 15
     investigation_max_tool_calls: int = 25
@@ -156,6 +236,11 @@ class ModelSpec:
     # "off": no cache hints. Resolved from settings and the model profile.
     prompt_cache: Literal["stable_prefix", "off"] = "off"
     prompt_version: str = PROMPT_VERSION
+    # OpenAI-compatible providers only: where to send requests and what the
+    # endpoint accepts. Non-secret by construction (validate_base_url); the
+    # API key is never part of the spec.
+    base_url: str | None = None
+    capabilities: dict[str, Any] | None = None
 
     def settings(self) -> dict[str, Any]:
         return {
@@ -166,6 +251,8 @@ class ModelSpec:
             "max_retries": self.max_retries,
             "prompt_cache": self.prompt_cache,
             "prompt_version": self.prompt_version,
+            **({"base_url": self.base_url} if self.base_url else {}),
+            **({"capabilities": self.capabilities} if self.capabilities else {}),
         }
 
     @classmethod
@@ -191,10 +278,23 @@ class OpenRouterCredentials(BaseSettings):
     openrouter_api_key: SecretStr | None = None
 
 
+class OpenAICompatibleCredentials(BaseSettings):
+    """INVESTIGATION_API_KEY for the generic OpenAI-compatible provider."""
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    investigation_api_key: SecretStr | None = None
+
+
 # provider -> (credential settings class, field, environment variable name)
 PROVIDER_CREDENTIALS: dict[str, tuple[type[BaseSettings], str, str]] = {
     "anthropic": (AnthropicCredentials, "anthropic_api_key", "ANTHROPIC_API_KEY"),
     "openrouter": (OpenRouterCredentials, "openrouter_api_key", "OPENROUTER_API_KEY"),
+    "openai_compatible": (
+        OpenAICompatibleCredentials,
+        "investigation_api_key",
+        "INVESTIGATION_API_KEY",
+    ),
 }
 
 
@@ -223,7 +323,28 @@ def resolve_model_spec(settings: InvestigationSettings) -> ModelSpec:
     else:
         thinking = "none" if settings.investigation_thinking == "off" else "adaptive"
     effort = settings.investigation_effort
-    if not profile.efforts:
+    compatible = OPENAI_COMPATIBLE_PROVIDERS.get(provider)
+    base_url, capabilities = None, None
+    if compatible is not None:
+        fixed_url, defaults = compatible
+        caps = ChatCapabilities(
+            tools=True,
+            tool_choice=settings.investigation_tool_choice,
+            parallel_tool_calls=settings.investigation_parallel_tool_calls,
+            strict_tools=settings.investigation_strict_tools,
+            reasoning=settings.investigation_reasoning or defaults.reasoning,
+            max_tokens_param=settings.investigation_max_tokens_param,
+            context_tokens=settings.investigation_context_tokens,
+            prompt_caching=settings.investigation_provider_prompt_caching,
+        )
+        url = fixed_url or settings.investigation_base_url
+        if not url:
+            raise ModelConfigError(f"INVESTIGATION_BASE_URL is required for provider {provider!r}")
+        base_url, capabilities = validate_base_url(url), caps.to_dict()
+        # effort is sent only when the endpoint declares a reasoning parameter
+        if caps.reasoning == "none":
+            effort = None
+    elif not profile.efforts:
         effort = None
     elif effort is not None and effort not in profile.efforts:
         raise ModelConfigError(
@@ -239,4 +360,6 @@ def resolve_model_spec(settings: InvestigationSettings) -> ModelSpec:
         timeout_seconds=settings.investigation_api_timeout_seconds,
         max_retries=settings.investigation_api_max_retries,
         prompt_cache="stable_prefix" if cache_on else "off",
+        base_url=base_url,
+        capabilities=capabilities,
     )

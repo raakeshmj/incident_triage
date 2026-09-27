@@ -491,3 +491,83 @@ def test_lifecycle_recordings_replay_deterministically(env):
     recording = _run(env, "bad-deployment").recording
     report = _replay(env, recording)
     assert report.deterministic, (report.differences, report.error)
+
+
+def test_openai_compatible_provider_recordings_are_credential_free(env, tmp_path):
+    """A real harness run through the generic OpenAI-compatible adapter (mocked
+    transport): a provider error that echoes the key, then tool calls. The
+    recording -- in memory and on disk -- never contains the key."""
+    import httpx
+
+    from packages.agents.config import ModelSpec
+    from packages.agents.openai_compatible import OpenAICompatibleInvestigationModel
+
+    key = "sk-integration-" + "K" * 40
+    replies = iter(
+        [httpx.Response(429, json={"error": {"message": f"rate limited for key {key}"}})]
+        + [
+            httpx.Response(
+                200,
+                json={
+                    "id": f"gen-{i}",
+                    "model": "vendor/model",
+                    "choices": [
+                        {
+                            "finish_reason": "tool_calls",
+                            "message": {
+                                "content": "<think>hidden</think>checking",
+                                "tool_calls": [
+                                    {
+                                        "id": f"c{i}",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "get_service_health",
+                                            "arguments": '{"service": "checkout-service"}',
+                                        },
+                                    }
+                                ],
+                            },
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 100, "completion_tokens": 10},
+                },
+            )
+            for i in range(40)
+        ]
+    )
+    spec = ModelSpec(
+        provider="openai_compatible",
+        model="vendor/model",
+        thinking="none",
+        effort=None,
+        max_tokens=1024,
+        timeout_seconds=5,
+        max_retries=0,
+        base_url="https://llm.example.test/v1",
+        capabilities={"tool_choice": True},
+    )
+
+    def factory(s):  # type: ignore[no-untyped-def]
+        return OpenAICompatibleInvestigationModel(
+            s,
+            api_key=key,
+            client=httpx.Client(transport=httpx.MockTransport(lambda r: next(replies))),
+        )
+
+    result = run_scenario(
+        SCENARIOS["bad-deployment"],
+        env,
+        mode="live",
+        spec=spec,
+        model_factory=factory,
+        traces_dir=tmp_path,
+        results_dir=None,
+        sleep=lambda s: None,
+        lifecycle=False,
+    )
+    assert result.errors == []
+    text = result.recording.model_dump_json()
+    saved = "".join(p.read_text() for p in tmp_path.glob("*.json"))
+    assert saved and result.recording.model["provider"] == "openai_compatible"
+    for blob in (text, saved):
+        assert key not in blob and "Bearer" not in blob and "hidden" not in blob

@@ -80,15 +80,15 @@ def test_investigation_agent_has_no_path_to_state_backends_or_shell():
     )
     violations = _violations("packages/agents", forbidden)
     # the OpenRouter adapter's HTTP client talks only to the model provider
-    assert violations == ["packages/agents/openrouter.py imports httpx"]
+    assert violations == ["packages/agents/openai_compatible.py imports httpx"]
 
 
-def test_only_the_openrouter_adapter_makes_http_calls_in_the_agent_package():
+def test_only_the_openai_compatible_adapter_makes_http_calls_in_the_agent_package():
     importers = sorted(
         file for file, names in _imports("packages/agents").items() if "httpx" in names
     )
-    assert importers == ["packages/agents/openrouter.py"]
-    names = _imports("packages/agents")["packages/agents/openrouter.py"]
+    assert importers == ["packages/agents/openai_compatible.py"]
+    names = _imports("packages/agents")["packages/agents/openai_compatible.py"]
     assert not {n for n in names if n.startswith(("packages.tools", "packages.evidence"))}
 
 

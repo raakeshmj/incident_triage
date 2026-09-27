@@ -16,6 +16,7 @@ from packages.agents.config import (
     AnthropicCredentials,
     ModelConfigError,
     ModelSpec,
+    OpenAICompatibleCredentials,
     OpenRouterCredentials,
 )
 from packages.agents.model import InvestigationModel
@@ -41,7 +42,24 @@ def _openrouter(spec: ModelSpec) -> InvestigationModel:
     return OpenRouterInvestigationModel(spec, api_key=key.get_secret_value())
 
 
-PROVIDERS: dict[str, ModelFactory] = {"anthropic": _anthropic, "openrouter": _openrouter}
+def _openai_compatible(spec: ModelSpec) -> InvestigationModel:
+    """Any OpenAI-compatible endpoint: INVESTIGATION_BASE_URL (persisted on the
+    spec) + INVESTIGATION_API_KEY (read here, never persisted) + the model."""
+    key = OpenAICompatibleCredentials().investigation_api_key
+    if key is None:
+        raise ModelConfigError("INVESTIGATION_API_KEY is not set (process environment or .env)")
+    if not spec.base_url:
+        raise ModelConfigError("INVESTIGATION_BASE_URL is not set")
+    from packages.agents.openai_compatible import OpenAICompatibleInvestigationModel
+
+    return OpenAICompatibleInvestigationModel(spec, api_key=key.get_secret_value())
+
+
+PROVIDERS: dict[str, ModelFactory] = {
+    "anthropic": _anthropic,
+    "openrouter": _openrouter,
+    "openai_compatible": _openai_compatible,
+}
 
 
 def known_providers() -> list[str]:

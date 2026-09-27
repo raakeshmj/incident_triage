@@ -164,6 +164,23 @@ Check an endpoint before an investigation (tiny requests, no project data):
 python scripts/provider_check.py    # catalog id, one completion, one trivial tool call
 ```
 
+### Tested endpoint: APInex
+
+Verified with `scripts/provider_check.py` on 2026-09-27 (catalog, one
+completion, one tool call; no investigation yet). Nothing in the code refers
+to it -- it is three configuration values:
+
+```bash
+INVESTIGATION_PROVIDER=openai_compatible
+INVESTIGATION_BASE_URL=https://api.apinex.bond/v1
+INVESTIGATION_MODEL=free/gpt-6-luna      # exact id from GET /v1/models
+```
+
+The catalog lists ids only (no capability metadata), so the defaults apply
+(tools + `tool_choice: auto`; no reasoning, strict or parallel parameters).
+Tool calling returned a correctly structured call; usage was reported; no
+cached-token counts were reported.
+
 ### OpenRouter
 
 The `openrouter` preset uses `https://openrouter.ai/api/v1` and

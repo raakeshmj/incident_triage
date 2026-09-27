@@ -91,3 +91,36 @@ def test_list_and_unknown_scenarios(capsys):
     assert cli.evaluate_main(["--list"]) == 0
     assert "bad-deployment" in capsys.readouterr().out
     assert cli.evaluate_main(["--scenario", "nope"]) == 2
+
+
+def test_live_evaluation_uses_the_configured_model_retry_policy(monkeypatch):
+    """Live runs honour INVESTIGATION_MODEL_ATTEMPTS / _RETRY_BACKOFF_SECONDS,
+    like the worker -- not the harness's fixed default."""
+    monkeypatch.setenv("INVESTIGATION_PROVIDER", "anthropic")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-real")
+    monkeypatch.setenv("INVESTIGATION_MODEL_ATTEMPTS", "6")
+    monkeypatch.setenv("INVESTIGATION_RETRY_BACKOFF_SECONDS", "5")
+    seen = {}
+
+    def fake_batch(*args, **kwargs):  # type: ignore[no-untyped-def]
+        seen.update(kwargs)
+        overall = dict.fromkeys(
+            (
+                "runs",
+                "root_cause_accuracy",
+                "escalation_rate",
+                "correct_escalation_rate",
+                "evidence_grounding_failures",
+                "unsafe_runs",
+                "avg_tool_calls",
+                "avg_iterations",
+                "avg_wall_ms",
+            ),
+            0,
+        )
+        return [], {"overall": {**overall, "pass_rate": 1.0}, "batch_id": "b"}
+
+    monkeypatch.setattr(cli, "_environment", lambda: object())
+    monkeypatch.setattr(cli, "run_batch", fake_batch)
+    assert cli.evaluate_main(["--scenario", "bad-deployment", "--mode", "live", "--yes"]) == 0
+    assert (seen["retry"].attempts, seen["retry"].backoff_seconds) == (6, 5.0)

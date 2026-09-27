@@ -34,6 +34,7 @@ from typing import Any
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from packages.agents.config import InvestigationSettings, ModelConfigError, missing_credentials
+from packages.agents.engine import RetryPolicy
 from packages.agents.factory import ModelFactory, build_investigation_model, validate_provider
 from packages.evaluation.harness import (
     FAKE_SPEC,
@@ -130,6 +131,7 @@ def evaluate_main(argv: list[str] | None = None) -> int:
 
     factory_for_run: Callable[[], ModelFactory] = fake_model_factory
     spec = FAKE_SPEC
+    run_kwargs: dict[str, Any] = {}
     if args.mode == "live":
         overrides: dict[str, Any] = {}
         if args.provider:
@@ -137,7 +139,8 @@ def evaluate_main(argv: list[str] | None = None) -> int:
         if args.model:
             overrides["investigation_model"] = args.model
         try:
-            spec = live_spec(InvestigationSettings(**overrides))
+            settings = InvestigationSettings(**overrides)
+            spec = live_spec(settings)
             validate_provider(spec.provider)
         except ModelConfigError as exc:
             print(f"live mode: {exc}", file=sys.stderr)
@@ -162,6 +165,13 @@ def evaluate_main(argv: list[str] | None = None) -> int:
         def factory_for_run() -> ModelFactory:
             return build_investigation_model
 
+        # the same model retry policy as the worker (INVESTIGATION_MODEL_ATTEMPTS,
+        # INVESTIGATION_RETRY_BACKOFF_SECONDS), not the harness's fake-mode default
+        run_kwargs["retry"] = RetryPolicy(
+            attempts=settings.investigation_model_attempts,
+            backoff_seconds=settings.investigation_retry_backoff_seconds,
+        )
+
     env = _environment()
     _, summary = run_batch(
         chosen,
@@ -173,6 +183,7 @@ def evaluate_main(argv: list[str] | None = None) -> int:
         results_dir=args.results_dir,
         traces_dir=args.traces_dir,
         on_result=None if args.json else _print_run,
+        **run_kwargs,
     )
     overall = summary["overall"]
     if args.json:
